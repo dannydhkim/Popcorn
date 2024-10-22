@@ -1,0 +1,24 @@
+{
+    "name": "Hello Extensions of the world!",
+    "description": "Base Level Extension",
+    "version": "1.0",
+    "manifest_version": 3,
+    "action": {
+      "default_popup": "hello.html",
+      "default_icon": "hello_extensions.png",
+      "default_title": "Click to open panel"
+    },
+    "content_scripts": [
+      {
+        "js": ["scripts/content.js"],
+        "css": ["scripts/styles.css"],
+        "matches": [
+          "*://www.netflix.com/*"
+        ]
+      }
+    ],
+    "permissions": ["sidePanel"],
+    "side_panel": {
+      "default_path": "sidepanel.html"
+    }
+  }
