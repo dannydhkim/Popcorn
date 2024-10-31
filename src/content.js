@@ -1,7 +1,5 @@
 (() => {
-  "use strict";  // Enable strict mode
-
-  // Function to add the button
+  "use strict";  
   const addButton = function() {
       // Check if the button already exists
       if (document.getElementById("native-popcorn-button")) return;
@@ -18,18 +16,9 @@
       newButton.setAttribute("id", "native-popcorn-button")
       newButton.setAttribute("class", "hasLabel")
 
-      // const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      // const svgNamespace = 'http://www.w3.org/2000/svg';
-      // const svgElement = document.createElementNS(svgNamespace, 'svg');
-
 
       const extensionId = chrome.runtime.id;
       const imageUrl = `chrome-extension://${extensionId}/public/cornelius.svg`;
-      // svgElement.setAttribute("src", imageUrl);
-      // svgElement.setAttribute("height", "45");
-      // svgElement.setAttribute("width", "45");
-
-
       
       // Create a container for the SVG
       const svgContainer = document.createElement('img');
@@ -41,119 +30,49 @@
       svgContainer.style.alignItems = 'center';
       svgContainer.style.justifyContent = 'center';
 
-      // Optional: Adjust the SVG styles if necessary
-      // const svgElement = svgContainer.querySelector('svg');
-      // if (svgElement) {
-      //   svgElement.setAttribute('width', '100%');
-      //   svgElement.setAttribute('height', '100%');
-      // }
-      
-      // Define the play button
-      const play = () => {
-        chrome.runtime.sendMessage({ action: 'getData' }, (response) => {
-        console.log('Received data:', response.data)
-      });
-    }
-
-      newButton.addEventListener('click', play);
-
       // svg.appendChild(svgElement)
       newButton.appendChild(svgContainer)
 
+      const toggleSidebar = () => {
+        let sidebar = document.getElementById('sidebar');
+        console.log("sidebar toggled.")
+  
+        if (!sidebar) {
+          // Create the sidebar if it doesn't exist
+          sidebar = document.createElement('div');
+          sidebar.id = 'sidebar';
+          sidebar.innerHTML = `<p>This is the sidebar content</p>`;
+          console.log("created sidebar")
+          console.log(sidebar)
+          document.body.appendChild(sidebar);
+        }
+
+        sidebar.classList.toggle("active");
+
+        const mainContentContainer = document.querySelector('.appMountPoint') || document.body;
+        mainContentContainer.style.marginRight = sidebar.classList.contains("active") ? "var(--chat-width)" : "0";
+    };
+
+      newButton.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: 'getData' }, (response) => {
+          console.log('Received data:', response.data);
+          toggleSidebar();
+        });
+      });
+
       // Insert the button next to the play button
       playButton.parentElement.insertBefore(newButton, playButton.nextSibling)
-
-      return [{
-        button: newButton,
-        play: play
-      }]
     }
 
-      // Create the button text
-      // const buttonImg = document.createElement("img")
-      // buttonImg.src = chrome.runtime.getURL('public/cornelius.png');
-      // buttonImg.setAttribute("style", "height: 100%; width: auto;"); // Adjust styling as needed
-      // buttonImg.setAttribute("alt", "Popcorn Icon");
-
-
-      // image.setAttribute('http://www.w3.org/1999/xlink','xlink:href', svgUrl);
-      // svg.appendChild(image);
-      // buttonImg.innerText = "Popcorn"
-      // buttonImg.setAttribute("style", "line-height: 1.7rem; font-size: 1.4rem;");
-      // buttonImg.setAttribute("class", playButton.querySelector("span").getAttribute("class"))
-
-      // Safely set the class from playButton span, if it exists
-      // const playButtonText = playButton.querySelector("span");
-      // if (playButtonText) {
-      //     buttonText.setAttribute("class", playButtonText.getAttribute("class"));
-      // }
-
-      // buttonImg.onerror = function(event) {
-      //   console.error('Image failed to load:', event);
-      // }; 
-  // }
   setInterval( () => {
       try {
           addButton();
-          // if (button)
-          //   for (const t of button)
-          //     t.button.addEventListener("click", () =>
-          //   {
-          //     t.play();
-          //     t.button.removeEventListener("click", () => {});
-          //   });
       } catch (e) {
           console.error(e);  // Log errors, if any
       }}, 500)
 }
 )();
 
-
-// import createCustomButton from customButton
-
-// Function to create your custom icon
-// function addButtonToContainer() {
-//     const containers = document.querySelectorAll(buttonContainerSelector);
-//     containers.forEach(container => {
-//       // Avoid adding the button multiple times
-//       if (!container.querySelector('button[data-uia="custom-button"]')) {
-//         const customButton = createCustomButton();
-//         container.appendChild(customButton);
-//       }
-//     });
-//   }
-  
-  // Callback function for MutationObserver
-// function mutationCallback(mutationsList) {
-//     for (const mutation of mutationsList) {
-//       console.log(mutation)
-//       // // Only interested in added nodes
-//       // if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-//       //   mutation.addedNodes.forEach(node => {
-//       //     // Only process element nodes (to exclude text, comments, etc.)
-//       //     if (node.nodeType === Node.ELEMENT_NODE) {
-//       //       // Check if the node is the element we're looking for
-//       //       if (node.matches('.slider-item')) {
-//       //         console.log("test")
-//       //         addButtonToContainer(node);
-//       //       }
-//       //       // // Also check if any of its child elements match
-//       //       // node.querySelectorAll('.slider-item').forEach(addIconToElement);
-//       //     }
-//       //   });
-//       // }
-//     }
-//   }
-  
-//   // Create an instance of MutationObserver with the callback function
-//   const observer = new MutationObserver(mutationCallback);
-  
-//   // Start observing the target node for configured mutations
-//   observer.observe(buttonControls--container, {
-//     childList: true, // Listen for added or removed child nodes
-//     subtree: true,   // Observe all descendants of the target
-//   });
-  
 //   document.querySelectorAll("billboard-links button-layer forward-leaning").forEach(addIconToElement);
   
 //   /* for controller on mini preview
