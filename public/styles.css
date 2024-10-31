@@ -1,0 +1,55 @@
+body, .appMountPoint {
+  display: flex;
+  flex-direction: row;
+  transition: margin-right 0.2s linear;
+}
+
+/* Sidebar styles */
+.sidebar {
+  width: 0; /* Initial width for transition */
+  height: 100%;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  transition: width 0.2s linear;
+  z-index: 9999999999;
+  background: var(--base-black);
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Sidebar styles */
+#sidebar {
+  width: 0; /* Initial width for transition */
+  height: 100%;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  transition: width 0.2s linear;
+  z-index: 9999999999;
+  background: var(--base-black);
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Open state for the sidebar */
+#sidebar.active {
+  width: var(--chat-width);
+}
+
+/* Button styles, if needed, can also go here */
+#native-popcorn-button {
+  background: linear-gradient(273.58deg, #FFFFFF 0%, #EF3E3A 100%);
+  color: #fff;
+  border-style: none;
+  border-radius: 50%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 45px;
+}

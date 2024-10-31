@@ -29,7 +29,7 @@ if (message.action === 'getData') {
     // getDataFromFirestore()
     // sendResponse(data)
     console.log("getting data from Firestore")
-    getDataFromFirestore().then((data) => {
+    getDataFromFirestore(db).then((data) => {
       console.log("received data", data)
       sendResponse({ data });
     });
@@ -40,7 +40,7 @@ if (message.action === 'getData') {
 
 async function getDataFromFirestore(db) {
   const contentsCol = collection(db, 'contents');
-  const contentSnapshot = awaitgetDocs(contentsCol);
+  const contentSnapshot = await getDocs(contentsCol);
   const contentList = contentSnapshot.docs.map(doc => doc.data());
   return contentList;
     // const querySnapshot = await getDocs(collection(db, 'contents'));
