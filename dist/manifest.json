@@ -4,7 +4,7 @@
     "version": "1.0",
     "manifest_version": 3,
     "background": {
-      "service_worker": "dist/background.js"
+      "service_worker": "background.js"
     },
     "action": {
       "default_popup": "hello.html",
@@ -13,7 +13,7 @@
     },
     "content_scripts": [
       {
-        "js": ["src/content.js"],
+        "js": ["content.js"],
         "css": ["public/styles.css"],
         "resources": ["public/cornelius.svg", "public/cornelius.png", ""],
         "matches": ["*://www.netflix.com/*"],
