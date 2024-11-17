@@ -1,5 +1,19 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import PopcornSidebar from './sidebar';
+
 (() => {
-  "use strict";  
+  "use strict";
+  let sidebar = document.getElementById('popcorn-sidebar-container');
+  sidebar = document.createElement('div');
+  sidebar.id = 'popcorn-sidebar-container';
+  sidebar.classList.add("hidden");
+  const netflix_background = document.querySelector('div.bd.dark-background');
+  netflix_background.parentElement.insertBefore(sidebar, netflix_background.nextSibling);
+
+  const root = createRoot(sidebar);
+  root.render(<PopcornSidebar/>);
+
   const addButton = function() {
       // Check if the button already exists
       if (document.getElementById("native-popcorn-button")) return;
@@ -33,24 +47,32 @@
       // svg.appendChild(svgElement)
       newButton.appendChild(svgContainer)
 
+      const previewModal = document.querySelector('[data-uia="preview-modal-container-DETAIL_MODAL"]')
+      const mainContentContainer = document.querySelector('.appMountPoint') || document.body
+
+      // if (sidebar.classList.contains('active') && previewModal) {
+      //   previewModal.style.marginRight = "25%";
+      //   previewModal.style.transform = previewModal.style.transform + ' scale(0.8)'
+
+      // } else if (sidebar.classList.contains('active') && mainContentContainer && (!!previewModal)) {
+      //   mainContentContainer.style.marginRight = "25%";
+      // }
+
       const toggleSidebar = () => {
-        let sidebar = document.getElementById('sidebar');
-        console.log("sidebar toggled.")
+        const ContentContainer = previewModal 
+        ?? mainContentContainer
+        ?? document.body;
   
-        if (!sidebar) {
-          // Create the sidebar if it doesn't exist
-          sidebar = document.createElement('div');
-          sidebar.id = 'sidebar';
-          sidebar.innerHTML = `<p>This is the sidebar content</p>`;
-          console.log("created sidebar")
-          console.log(sidebar)
-          document.body.appendChild(sidebar);
+        if (sidebar) {          
+          sidebar.classList.toggle('active');
+          ContentContainer.classList.toggle('scaled-down')
+        //   if (sidebar.classList.contains('active')) { 
+        //     ContentContainer.classList.toggle('scaled-down')
+        // } else {
+        //     ContentContainer.classList.toggle('scaled-down')
+        //   }
         }
 
-        sidebar.classList.toggle("active");
-
-        const mainContentContainer = document.querySelector('.appMountPoint') || document.body;
-        mainContentContainer.style.marginRight = sidebar.classList.contains("active") ? "var(--chat-width)" : "0";
     };
 
       newButton.addEventListener('click', () => {
