@@ -1,5 +1,6 @@
 import { db } from './firebaseConfig';
 import { getFirestore, getDocs, collection } from 'firebase/firestore';
+import React, { useState, useRef, useEffect } from 'react';
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log('Firebase initialized in background script.');
@@ -22,3 +23,46 @@ async function getDataFromFirestore(db) {
   const contentList = contentSnapshot.docs.map(doc => doc.data());
   return contentList;
   }
+
+
+function useComments() {
+  const [comments, setComments] = useState([]);
+
+  useEffect(() => {
+    const unsubscribe = firestore.collection('contents')
+      .orderBy('timestamp', 'asc')
+      .onSnapshot(snapshot => {
+        const commentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setComments(commentsData);
+      });
+
+    return () => unsubscribe();
+  }, []);
+
+  return comments;
+}
+
+function buildCommentTree(comments) {
+    const commentMap = {};
+    comments.forEach(comment => {
+      comment.children = [];
+      commentMap[comment.id] = comment;
+    });
+  
+    const rootComments = [];
+  
+    comments.forEach(comment => {
+      if (comment.parentId) {
+        const parent = commentMap[comment.parentId];
+        if (parent) {
+          parent.children.push(comment);
+        }
+      } else {
+        rootComments.push(comment);
+      }
+    });
+  
+    return rootComments;
+  }
+
+console.log(buildCommentTree())

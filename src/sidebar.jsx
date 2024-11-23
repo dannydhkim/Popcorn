@@ -13,6 +13,8 @@ function PopcornSidebar() {
   const [data, setData] = useState([]);
 
   useEffect(() => {
+    buildCommentTree()
+    window.location.href
     // const fetchData = async () => {
     //   try {
     //     const querySnapshot = await getDocs(collection(db, 'contents'));
@@ -47,6 +49,9 @@ function PopcornSidebar() {
       extraInfo={extra_info}
       />
       <CommentBox />
+      <Comments>
+
+      </Comments>
       <div class="comments-section">
         <div class="comment">
           <div class="vote-buttons">
