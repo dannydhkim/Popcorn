@@ -1,36 +1,17 @@
 import React,  { useState, useEffect} from 'react';
 import CommentBox from './CommentBox';
-import Banner from './banner';
-import { db } from './firebaseConfig';
+import Banner from './banner.jsx';
+import { db } from './firebaseConfig.js';
 import { getFirestore, getDocs, collection } from 'firebase/firestore';
 // import useComments from 'comment'
 import '../public/styles.css';
 
-function PopcornSidebar() {
+function PopcornSidebar({commentData, loading}) {
   console.log('PopcornSidebar component is rendering');
-  // const comments = useComments();
-  // const nestedComments = buildCommentTree(comments);
   const [data, setData] = useState([]);
+  const [comments, setComments] = useState(commentData || [])
 
-  useEffect(() => {
-    buildCommentTree()
-    window.location.href
-    // const fetchData = async () => {
-    //   try {
-    //     const querySnapshot = await getDocs(collection(db, 'contents'));
-    //     const items = [];
-    //     querySnapshot.forEach((doc) => {
-    //       items.push({ id: doc.id, ...doc.data() });
-    //     });
-    //     setData(items);
-    //   } catch (error) {
-    //     console.error('Error fetching data:', error);
-    //   }
-    // };
-
-    // fetchData();
-  }, []); // Empty dependency array ensures this runs once when the component mounts
-
+  console.log(window.location.href)
   const content_title = "Title"
   const movie_description = "Short description of the movie."
   const extra_info = "Here is some extra information about the movie that only shows up when 'More Info' is clicked."
@@ -49,9 +30,15 @@ function PopcornSidebar() {
       extraInfo={extra_info}
       />
       <CommentBox />
-      <Comments>
-
-      </Comments>
+      {loading && <p>Loading comments...</p>}
+      {!loading && comments.length === 0 && <p>No comments available.</p>}
+      {!loading && comments.length > 0 && (
+        <ul>
+          {comments.map((comment, index) => (
+            <li key={index}>{comment.text}</li>
+          ))}
+        </ul>
+      )}
       <div class="comments-section">
         <div class="comment">
           <div class="vote-buttons">
