@@ -1,1 +1,1 @@
-console.log("Welcome to Popcorn!");
+(()=>{"use strict";console.log("Welcome to Popcorn!")})();

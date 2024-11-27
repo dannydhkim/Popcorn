@@ -1,8 +1,12 @@
-const path = require('path');
-const HtmlWebpackPlugin = require("html-webpack-plugin")
-const MiniCssExtractPlugin = require("mini-css-extract-plugin")
+import path from 'path';
+import HtmlWebpackPlugin from "html-webpack-plugin"
+import MiniCssExtractPlugin from "mini-css-extract-plugin"
+import { fileURLToPath } from 'url';
 
-module.exports = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export default {
   entry: {
     background: './src/background.js',
     content: './src/content.js',
@@ -58,8 +62,8 @@ module.exports = {
   },
   plugins: [
       new HtmlWebpackPlugin({
-        template: './src/sidebar.html',
-        filename: 'sidebar.html',
+        template: './src/sidebar_template.html',
+        filename: 'sidebar_template.html',
         chunks: ['sidebar'],
       }),
   

@@ -1,4 +1,4 @@
-import { db } from './firebaseConfig';
+import { db } from './firebaseConfig.js';
 import { getFirestore, getDocs, collection } from 'firebase/firestore';
 import React, { useState, useRef, useEffect } from 'react';
 
@@ -19,6 +19,7 @@ if (message.action === 'getData') {
 
 async function getDataFromFirestore(db) {
   const contentsCol = collection(db, 'contents');
+  console.log(contentsCol)
   const contentSnapshot = await getDocs(contentsCol);
   const contentList = contentSnapshot.docs.map(doc => doc.data());
   return contentList;
@@ -65,4 +66,5 @@ function buildCommentTree(comments) {
     return rootComments;
   }
 
-console.log(buildCommentTree())
+// console.log(useComments());
+// console.log(buildCommentTree());

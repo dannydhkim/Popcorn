@@ -4,6 +4,7 @@ const Banner = ({ title, actors, description, extraInfo }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const toggleExpand = () => {
+    console.log("test")
     setIsExpanded((prev) => !prev);
   };
 
