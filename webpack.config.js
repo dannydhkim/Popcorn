@@ -62,8 +62,8 @@ export default {
   },
   plugins: [
       new HtmlWebpackPlugin({
-        template: './src/sidebar_template.html',
-        filename: 'sidebar_template.html',
+        template: './src/sidebar.html',
+        filename: 'sidebar.html',
         chunks: ['sidebar'],
       }),
   

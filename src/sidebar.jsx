@@ -10,6 +10,7 @@ function PopcornSidebar({commentData, loading}) {
   console.log('PopcornSidebar component is rendering');
   const [data, setData] = useState([]);
   const [comments, setComments] = useState(commentData || [])
+  const [loadingState, setLoadingState] = useState(loading)
 
   console.log(window.location.href)
   const content_title = "Title"
@@ -21,6 +22,10 @@ function PopcornSidebar({commentData, loading}) {
     { name: 'Actor 3', link: 'https://actor3.com' },
   ];
 
+  if (commentData) {
+    setLoadingState(false)
+  }
+
   return (
     <div class="popcorn-sidebar">
       <Banner
@@ -30,9 +35,9 @@ function PopcornSidebar({commentData, loading}) {
       extraInfo={extra_info}
       />
       <CommentBox />
-      {loading && <p>Loading comments...</p>}
-      {!loading && comments.length === 0 && <p>No comments available.</p>}
-      {!loading && comments.length > 0 && (
+      {loadingState && <p>Loading comments...</p>}
+      {!loadingState && comments.length === 0 && <p>No comments available.</p>}
+      {!loadingState && comments.length > 0 && (
         <ul>
           {comments.map((comment, index) => (
             <li key={index}>{comment.text}</li>
