@@ -1,5 +1,5 @@
 import { db } from './firebaseConfig.js';
-import { getFirestore, getDocs, collection, where } from 'firebase/firestore';
+import { getFirestore, getDocs, collection, where, query } from 'firebase/firestore';
 import React, { useState, useRef, useEffect } from 'react';
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -17,12 +17,15 @@ if (message.action === 'getData') {
 }
 });
 
-async function getDataFromFirestore(db, query) {
+async function getDataFromFirestore(db, query_val) {
   const contentsCol = collection(db, 'contents');
-  console.log(contentsCol)
-  const contentSnapshot = await getDocs(contentsCol);
-  console.log(query(contentSnapshot, where("videoID", "==", query)));
-  const contentList = contentSnapshot.docs.map(doc => doc.data());
+  const w = query(contentsCol, where("videoID", "==", query_val));
+  const idSnapshot = await getDocs(w);
+  idSnapshot.forEach((doc) => {
+    console.log(doc.id, " => ", doc.data());
+  })
+  const contentList = idSnapshot.docs.map(doc => doc.data())
+
   return contentList;
   }
 
