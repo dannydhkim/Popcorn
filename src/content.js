@@ -20,6 +20,7 @@ import PopcornSidebar from './sidebar.jsx';
 
       // Find the Netflix play button
       const playButton = document.querySelector("a.primary-button.playLink")
+      console.log(playButton)
       if (!playButton) return;
 
       // Create the new button
@@ -58,7 +59,7 @@ import PopcornSidebar from './sidebar.jsx';
       //   mainContentContainer.style.marginRight = "25%";
       // }
 
-      const toggleSidebar = (data) => {
+      const toggleSidebar = () => {
         const ContentContainer = previewModal 
         ?? mainContentContainer
         ?? document.body;
@@ -66,30 +67,16 @@ import PopcornSidebar from './sidebar.jsx';
         if (sidebar) {
           sidebar.classList.toggle('active');
           if (sidebar.classList.contains('active')) {
-            const SidebarContainer = () => {
-              const [comments, setComments] = useState([]);
-              const [loading, setLoading] = useState(false);
-
-              const fetchData = async () => {
-                setLoading(true);
                 try {
-                  const response = await
-                  chrome.runtime.sendMessage({ action: 'getData' }, (response) => {
-                    setComments(response.data);
+                  chrome.runtime.sendMessage({ action: 'getData', videoId: window.location.href}, (response) => {
+                    console.log(window.location.href, response)
+                    root.render(<PopcornSidebar comments={response} loading={true}/>);
                 })
               } finally {
-                setLoading(false);
+                root.render(<PopcornSidebar loading={false}/>);;
               }
             };
-
-            useEffect(() => {
-              fetchData();
-            }, []);
-
-            return <PopcornSidebar comments={comments} loading={loading}/>
           };
-            root.render(<SidebarContainer/>);
-          }
           ContentContainer.classList.toggle('scaled-down')
         //   if (sidebar.classList.contains('active')) { 
         //     ContentContainer.classList.toggle('scaled-down')
@@ -98,15 +85,14 @@ import PopcornSidebar from './sidebar.jsx';
         //   }
         }
 
-    };
-
       newButton.addEventListener('click', () => {
-          toggleSidebar(response.data);
+          toggleSidebar();
       });
 
       // Insert the button next to the play button
       playButton.parentElement.insertBefore(newButton, playButton.nextSibling)
-    }
+
+  }
 
   setInterval( () => {
       try {
