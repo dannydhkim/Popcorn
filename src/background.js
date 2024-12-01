@@ -9,7 +9,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 if (message.action === 'getData') {
     console.log("getting data from Firestore")
-    getDataFromFirestore(db, message.videoId).then((data) => {
+    getCommentsFromFirestore(db, message.videoId).then((data) => {
       console.log("received data", data)
       sendResponse({ data });
     });
@@ -17,16 +17,36 @@ if (message.action === 'getData') {
 }
 });
 
-async function getDataFromFirestore(db, query_val) {
-  const contentsCol = collection(db, 'contents');
-  const w = query(contentsCol, where("videoID", "==", query_val));
-  const idSnapshot = await getDocs(w);
-  idSnapshot.forEach((doc) => {
-    console.log(doc.id, " => ", doc.data());
-  })
-  const contentList = idSnapshot.docs.map(doc => doc.data())
+async function getCommentsFromFirestore(db, query_val) {
+  const docSnapshot = await getDataFromFirestore(db, query_val)
 
-  return contentList;
+  if (docSnapshot.empty) {
+    console.log("No matching documents found.");
+    return [];
+  }
+  const firstDocRef = docSnapshot.docs[0].ref
+  const commentsCollectionRef = collection(firstDocRef, 'comments')
+
+  const commentsSnapshot = await getDocs(commentsCollectionRef)
+
+  const comments = commentsSnapshot.docs.map(doc => ({
+    author: doc.author,
+    comment: doc.content,
+    ...doc.data()
+  }));
+
+  return comments
+
+}
+
+async function getDataFromFirestore(db, query_val) {
+  const contentsCol = collection(db, 'contents');  
+  const q = query(contentsCol, where("netflixUrl", "==", query_val));
+  const qidSnapshot = await getDocs(q);
+
+  const qcontentList = qidSnapshot.docs.map(doc => doc.data())
+
+  return qidSnapshot
   }
 
 
