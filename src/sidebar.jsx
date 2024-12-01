@@ -8,11 +8,12 @@ import '../public/styles.css';
 
 function PopcornSidebar({commentData, loading}) {
   console.log('PopcornSidebar component is rendering');
+  console.log("props", {commentData, loading})
+  console.log("commentData in sidebar", commentData)
   const [data, setData] = useState([]);
   const [comments, setComments] = useState(commentData || [])
   const [loadingState, setLoadingState] = useState(loading)
 
-  console.log(window.location.href)
   const content_title = "Title"
   const movie_description = "Short description of the movie."
   const extra_info = "Here is some extra information about the movie that only shows up when 'More Info' is clicked."
@@ -22,9 +23,23 @@ function PopcornSidebar({commentData, loading}) {
     { name: 'Actor 3', link: 'https://actor3.com' },
   ];
 
-  if (commentData) {
-    setLoadingState(false)
+  const fetchData = () => {
+    chrome.runtime.sendMessage({ action: 'getData', videoId: window.location.href}, (response) => {
+      if (response) {
+        setComments(response);
+      } else {
+        throw Error('failed to fetch comments:', response)
+      }
+
+      })
   }
+
+  useEffect(() => {
+    if (isActive) {
+      fetchData();
+    }
+    },
+    [isActive, window.location.href])
 
   return (
     <div class="popcorn-sidebar">

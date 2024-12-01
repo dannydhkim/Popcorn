@@ -51,14 +51,6 @@ import PopcornSidebar from './sidebar.jsx';
       const previewModal = document.querySelector('[data-uia="preview-modal-container-DETAIL_MODAL"]')
       const mainContentContainer = document.querySelector('.appMountPoint') || document.body
 
-      // if (sidebar.classList.contains('active') && previewModal) {
-      //   previewModal.style.marginRight = "25%";
-      //   previewModal.style.transform = previewModal.style.transform + ' scale(0.8)'
-
-      // } else if (sidebar.classList.contains('active') && mainContentContainer && (!!previewModal)) {
-      //   mainContentContainer.style.marginRight = "25%";
-      // }
-
       const toggleSidebar = () => {
         const ContentContainer = previewModal 
         ?? mainContentContainer
@@ -67,22 +59,14 @@ import PopcornSidebar from './sidebar.jsx';
         if (sidebar) {
           sidebar.classList.toggle('active');
           if (sidebar.classList.contains('active')) {
-                try {
-                  chrome.runtime.sendMessage({ action: 'getData', videoId: window.location.href}, (response) => {
-                    console.log(window.location.href, response)
-                    root.render(<PopcornSidebar comments={response} loading={true}/>);
-                })
-              } finally {
-                root.render(<PopcornSidebar loading={false}/>);;
-              }
+            
+            chrome.runtime.sendMessage({ action: 'getData', videoId: window.location.href}, (response) => {
+              console.log("send Message", response)
+              root.render(<PopcornSidebar comments={response} loading={false}/>);
+              })
             };
           };
           ContentContainer.classList.toggle('scaled-down')
-        //   if (sidebar.classList.contains('active')) { 
-        //     ContentContainer.classList.toggle('scaled-down')
-        // } else {
-        //     ContentContainer.classList.toggle('scaled-down')
-        //   }
         }
 
       newButton.addEventListener('click', () => {
