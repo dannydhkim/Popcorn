@@ -30,8 +30,6 @@ async function getCommentsFromFirestore(db, query_val) {
   const commentsSnapshot = await getDocs(commentsCollectionRef)
 
   const comments = commentsSnapshot.docs.map(doc => ({
-    author: doc.author,
-    comment: doc.content,
     ...doc.data()
   }));
 

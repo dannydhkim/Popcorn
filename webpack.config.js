@@ -48,6 +48,14 @@ export default {
             // PostCSS will run before css-loader and will
             // minify and autoprefix our CSS rules.
             loader: "postcss-loader",
+            options: {
+              postcssOptions: {
+                plugins: [
+                  'tailwindcss',
+                  'autoprefixer',
+                ],
+              },
+            },
           },
         ],
       },
@@ -69,7 +77,7 @@ export default {
   
       // Create the stylesheet under 'styles' directory
       new MiniCssExtractPlugin({
-        filename: "styles/styles.[hash].css",
+        filename: "public/styles.css",
       }),
     ],
   resolve: {
