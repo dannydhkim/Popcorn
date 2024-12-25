@@ -15,7 +15,7 @@
       {
         "js": ["src/content.js"],
         "css": ["public/styles.css"],
-        "resources": ["public/cornelius.svg", "public/cornelius.png", ""],
+        "resources": ["public/cornelius.svg", "public/cornelius.png", "public/styles.css", ""],
         "matches": ["*://www.netflix.com/*"],
         "run_at": "document_idle"
       }
