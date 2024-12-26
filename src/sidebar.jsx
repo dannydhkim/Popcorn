@@ -94,10 +94,18 @@ function PopcornSidebar({ isOpen, closeSidebar, commentData, loading }) {
 
   return ReactDOM.createPortal(
     <div
-      className={`popcorn-sidebar-container transition-margin shadow-sidebar fixed right-0 top-0 z-[9999] h-full w-1/4 transform overflow-y-auto bg-base-black p-5 text-gray-200 duration-500 ease-in-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+      className={`popcorn-sidebar-container transition-margin shadow-lg fixed right-0 top-0 z-[9999] h-full w-1/3 transform overflow-y-auto bg-[#141414] p-5 text-gray-200 duration-500 ease-in-out ${isOpen ? "translate-x-0" : "translate-x-full"}`}
     >
-      <div className="popcorn-sidebar transition-width fixed right-0 top-0 z-[9999999999] h-full w-[93%] cursor-auto select-text overflow-y-auto bg-base-black p-5 text-gray-200 duration-200 ease-linear">
-        <button onClick={closeSidebar}>Close</button>
+      <div className="popcorn-sidebar transition-width fixed right-0 top-0 z-[9999999999] h-full w-[93%] cursor-auto select-text overflow-y-auto bg-[#141414] p-5 text-gray-200 duration-200 ease-linear shadow-md">
+      <div className="flex justify-between items-center mb-5">
+      <h2 className="text-lg font-bold text-white">Popcorn</h2>
+      <button
+        onClick={closeSidebar}
+        className="text-sm text-gray-300 hover:text-gray-100"
+      >
+        Close ✖
+      </button>
+      </div>
         <Banner
           title={content_title}
           actors={actors}
@@ -105,75 +113,54 @@ function PopcornSidebar({ isOpen, closeSidebar, commentData, loading }) {
           extraInfo={extra_info}
         />
         <CommentBox />
-        {loadingState && <p>Loading comments...</p>}
+        {loadingState && (
+      <div className="loading-section mt-5">
+        {Array(5)
+          .fill("")
+          .map((_, index) => (
+            <div
+              key={index}
+              className="animate-pulse flex space-x-4 mb-4 items-center"
+            >
+              <div className="rounded-full bg-[#333333] h-10 w-10"></div>
+              <div className="flex-1 space-y-3 py-1">
+                <div className="h-4 bg-[#333333] rounded w-1/2"></div>
+                <div className="h-4 bg-[#333333] rounded w-3/4"></div>
+              </div>
+            </div>
+          ))}
+      </div>
+    )}
         {!loadingState && comments.length === 0 && (
-          <p>No comments available.</p>
+          <p className="mt-5 text-gray-400">No comments available.</p>
         )}
         {!loadingState && comments.length > 0 && (
-          <div className="comments-section">
+          <div className="comments-section mt-5 space-y-4">
             {comments.map((comment, index) => (
-              <div className="comment" key={index}>
-                <div className="vote-buttons">
-                  <button className="upvote hover:">⬆</button>
-                  <span className="score">{comment.totalVote}</span>
-                  <button className="downvote">⬇</button>
+              <div
+              className="comment bg-[#1F1F1F] p-4 rounded-lg shadow-sm flex items-center"
+              key={index}
+            >
+                <div className="vote-buttons flex flex-col items-center mr-4 space-y-2">
+                <button className="upvote text-gray-400 hover:text--[#E50914]">
+                ⬆
+              </button>
+              <span className="score text-sm text-gray-300">
+                {comment.totalVote}
+              </span>
+              <button className="downvote text-gray-400 hover:text--[#E50914]">
+                ⬇
+              </button>
                 </div>
-                <p>
-                  <strong>{comment.author}:</strong> {comment.content}
+                <div className="comment-content flex-1">
+                <p className="text-gray-300">
+                  <strong className="text-white ">{comment.author}:</strong> {" "}{comment.content}
                 </p>
+              </div>
               </div>
             ))}
           </div>
         )}
-        <div class="comments-section">
-          <div class="comment">
-            <div class="vote-buttons">
-              <button class="upvote">⬆</button>
-              <span class="score">5</span>
-              <button class="downvote">⬇</button>
-            </div>
-            <p>
-              <strong>User1:</strong> This movie was amazing! Really loved the
-              cinematography.
-            </p>
-          </div>
-          <div class="nested-comment">
-            <div class="comment">
-              <div class="vote-buttons">
-                <button class="upvote">⬆</button>
-                <span class="score">2</span>
-                <button class="downvote">⬇</button>
-              </div>
-              <p>
-                <strong>User2:</strong> I agree! The visuals were stunning.
-              </p>
-            </div>
-            <div class="nested-comment">
-              <div class="comment">
-                <div class="vote-buttons">
-                  <button class="upvote">⬆</button>
-                  <span class="score">1</span>
-                  <button class="downvote">⬇</button>
-                </div>
-                <p>
-                  <strong>User3:</strong> Definitely! The lighting in that one
-                  scene was perfect.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="comment">
-          <p>
-            <strong>User2:</strong> I thought the storyline was a bit
-            predictable.
-          </p>
-        </div>
-        <div class="comment">
-          <p>
-            <strong>User3:</strong> Great performances by the lead actors!
-          </p>
-        </div>
       </div>
     </div>,
     bgPortalDiv,
