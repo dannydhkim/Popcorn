@@ -9,7 +9,7 @@ const Banner = ({ title, actors, description, extraInfo }) => {
   };
 
   return (
-    <div className={`banner bg-gray-800 p-4 rounded-md mb-5 
+    <div className={`banner bg-gray-800 p-4 rounded-md mb-5 mr-5
       ${isExpanded ? 'expanded-class' : ''}`}>
       <h1>{title}</h1>
       <div className="actors">

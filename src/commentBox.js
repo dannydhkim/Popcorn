@@ -32,20 +32,19 @@ const CommentBox = () => {
   };
 
   return (
-    <form className="comment-form" onSubmit={handleSubmit}>
+    <form className="flex flex-col mr-5 space-y-2" onSubmit={handleSubmit}>
       <textarea
         ref={textareaRef}
         value={comment}
         onChange={handleChange}
         placeholder="Write a comment..."
-        style={{
-          width: '100%',
-          resize: 'none',
-          overflow: 'hidden',
-          boxSizing: 'border-box',
-      }}
+        className="w-full text-2xl text-black resize-none overflow-hidden p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
-      <button type="submit" className="comment-submit-button">
+      <button
+        type="submit"
+        onSubmit={handleSubmit}
+        className="self-end text-lg px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
         Post
       </button>
     </form>
