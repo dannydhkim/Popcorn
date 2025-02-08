@@ -1,3 +1,7 @@
+#large file
+extracted_metadata.json
+filtered-data.json.gz
+
 # Logs
 logs
 *.log
@@ -9,6 +13,8 @@ firebase-debug.*.log*
 
 # Firebase cache
 .firebase/
+film_database/*
+.venv/*
 
 # Firebase config
 
