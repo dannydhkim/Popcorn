@@ -52,7 +52,7 @@ const CorneliusButton = ({ toggleSidebar }) => {
       <img
         src={`${imgURL}`}
         alt="Cornelius"
-        className="h-full w-full object-contain"
+        className="h-full w-full will-change-transform transition-transform duration-300 hover:scale-110"
       />
     </button>,
     cbPortalDiv,
