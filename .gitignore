@@ -1,3 +1,7 @@
+#large file
+extracted_metadata.json
+filtered-data.json.gz
+
 # Logs
 logs
 *.log
