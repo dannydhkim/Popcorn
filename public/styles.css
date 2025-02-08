@@ -1,43 +1,30 @@
-Sidebar styles
-.sidebar {
-  width: 0; /* Initial width for transition */
-  height: 100%;
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  transition: width 0.2s linear;
-  z-index: 9999999999;
-  background: var(--base-black);
-  cursor: auto;
-  user-select: text;
-  -webkit-user-select: text;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+[class="billboard billboard-pane billboard-originals trailer-billboard"].scaled-down,
+[data-uia="preview-modal-container-DETAIL_MODAL"].scaled-down,
+.appMountPoint.scaled-down,
+body.scaled-down  {
+  margin-right: 25%;
 }
 
-/* Sidebar styles */
-#sidebar {
-  width: 0; /* Initial width for transition */
-  height: 100%;
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  transition: width 0.2s linear;
-  z-index: 9999999999;
-  background: var(--base-black);
-  cursor: auto;
-  user-select: text;
-  -webkit-user-select: text;
+[data-uia="preview-modal-container-DETAIL_MODAL"],
+.appMountPoint,
+body {
+  transition: margin-right 0.5s ease-in-out;
 }
 
-/* Open state for the sidebar */
-#popcorn-sidebar-container.active {
-  width: var(--chat-width);
+/* .popcorn-sidebar-container.active {
+  transform: translateX(0);
 }
 
-/* Button styles, if needed, can also go here */
+.popcorn-sidebar-container.hidden {
+  transform: translateX(100%);
+}
+
 #native-popcorn-button {
-  background: linear-gradient(273.58deg, #FFFFFF 0%, #EF3E3A 100%);
+  background: linear-gradient(90.0deg, #FFFFFF 0%, #EF3E3A 100%);
   color: #fff;
   border-style: none;
   border-radius: 50%;
@@ -48,9 +35,9 @@ Sidebar styles
   max-height: 45px;
 }
 
-#popcorn-sidebar-container {
-  width: 400px;
-  height: 100vh;
+.popcorn-sidebar-container {
+  width: 25%;
+  height: 100%;
   background-color: #1c1c1c;
   color: #e0e0e0;
   padding: 20px;
@@ -59,21 +46,32 @@ Sidebar styles
   right: 0;
   top: 0;
   opacity: 1;
-  transform: none;
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
   z-index: 9999;
   box-shadow: -2px 0 5px rgba(0, 0, 0, 0.5);
 }
 
-#popcorn-sidebar {
-  width: 400px;
-  height: 100vh;
+.popcorn-sidebar {
+  width: 93%;
   background-color: #1c1c1c;
-  color: #e0e0e0;
-  padding: 20px;
+  color: #e0e0e0; 
+  padding: 5%;
   overflow-y: auto;
   position: fixed;
   opacity: 1;
   transform: none;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  transition: width 0.2s linear;
+  z-index: 9999999999;
+  background: var(--base-black);
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .banner {
@@ -84,13 +82,13 @@ Sidebar styles
 }
 
 .banner h2 {
-  font-size: 1.5em;
+  font-size: 1.2em;
   margin-bottom: 8px;
   color: #ffffff;
 }
 
 .banner p {
-  font-size: 0.9em;
+  font-size: 1.3em;
   color: #b0b0b0;
   margin-bottom: 12px;
 }
@@ -151,15 +149,97 @@ Sidebar styles
   margin-left: 20px;
   border-left: 2px solid #333;
   padding-left: 10px;
-  margin-top: 10px;
   margin-bottom: 10px;
 }
 
 .comment p {
-  font-size: 0.85em;
+  font-size: 1.5em;
   color: #cccccc;
 }
 
 .comment p strong {
   color: #ffffff;
 }
+
+.comment-box {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px;
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+
+  color: #1c1c1c;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+
+  transition: border-color 0.2s;
+}
+
+.comment-box:focus {
+  border-color: #0079d3;
+  outline: none;
+}
+
+.comment-box::placeholder {
+  color: #a8a8a8;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.comment-submit-button {
+  margin-top: 8px;
+  padding: 8px 16px;
+  background-color: #0079d3;
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+
+  transition: background-color 0.2s;
+}
+
+.comment-submit-button:hover {
+  background-color: #005999;
+}
+
+@media (prefers-color-scheme: dark) {
+  .comment-box {
+    background-color: #1a1a1a;
+    color: #f0f0f0;
+    border-color: #444;
+  }
+
+  .comment-box::placeholder {
+    color: #888;
+  }
+
+  .comment-submit-button {
+    background-color: #444;
+    color: #f0f0f0;
+  }
+
+  .comment-submit-button:hover {
+    background-color: #555;
+  }
+}
+
+.comment-box.error {
+  border-color: #e74c3c;
+}
+
+.comment-box.error:focus {
+  border-color: #c0392b;
+} */

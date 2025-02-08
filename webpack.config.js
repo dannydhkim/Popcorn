@@ -1,8 +1,12 @@
-const path = require('path');
-const HtmlWebpackPlugin = require("html-webpack-plugin")
-const MiniCssExtractPlugin = require("mini-css-extract-plugin")
+import path from 'path';
+import HtmlWebpackPlugin from "html-webpack-plugin"
+import MiniCssExtractPlugin from "mini-css-extract-plugin"
+import { fileURLToPath } from 'url';
 
-module.exports = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export default {
   entry: {
     background: './src/background.js',
     content: './src/content.js',
@@ -44,6 +48,14 @@ module.exports = {
             // PostCSS will run before css-loader and will
             // minify and autoprefix our CSS rules.
             loader: "postcss-loader",
+            options: {
+              postcssOptions: {
+                plugins: [
+                  'tailwindcss',
+                  'autoprefixer',
+                ],
+              },
+            },
           },
         ],
       },
@@ -65,7 +77,7 @@ module.exports = {
   
       // Create the stylesheet under 'styles' directory
       new MiniCssExtractPlugin({
-        filename: "styles/styles.[hash].css",
+        filename: "public/styles.css",
       }),
     ],
   resolve: {

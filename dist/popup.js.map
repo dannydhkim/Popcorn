@@ -1,0 +1,1 @@
+{"version":3,"file":"popup.js","mappings":"mBAAAA,QAAQC,IAAI,sB","sources":["webpack://popcorn/./src/popup.js"],"sourcesContent":["console.log('Welcome to Popcorn!');"],"names":["console","log"],"sourceRoot":""}
