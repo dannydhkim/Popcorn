@@ -4,7 +4,7 @@ import os
 from tqdm import tqdm
 
 DUMP_FILE = "C:/Users/krdan/latest-all.json.gz"
-OUTPUT_FILE = "genre.json.gz"
+OUTPUT_FILE = "filtered-data.json.gz"
 TARGET_TYPES = ["Q11424", "Q15416"]  # Film and Television Series
 
 # Get the file size for progress calculation

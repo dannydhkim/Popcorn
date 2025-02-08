@@ -1,7 +1,6 @@
 import gzip
 import json
 import os
-import pandas as pd
 
 def validate_json_gz_files(folder_path, required_keys=None):
     """
@@ -42,28 +41,10 @@ def validate_json_gz_files(folder_path, required_keys=None):
 
     return summary
 
-# # Example usage
-# folder_path = 'film_database'
-# required_keys = ['title', 'director', 'release_date']  # Adjust based on your data schema
-# results = validate_json_gz_files(folder_path)
+# Example usage
+folder_path = 'film_database'
+required_keys = ['title', 'director', 'release_date']  # Adjust based on your data schema
+results = validate_json_gz_files(folder_path)
 
-# print("Validation Summary:")
-# print(json.dumps(results, indent=4))
-
-with open('film_database/genre.json', 'r') as f:
-    data = f.read().splitlines()
-json_data = [json.loads(line) for line in data]
-
-rows = []
-for item in json_data:
-    qid = item.get("id")
-    val = item.get("labels",{}).get("en", {}).get("value")
-    description = item.get("descriptions", {}).get("en", {}).get("value")
-    row = {"id":qid, "genre":val, "description":description}
-    rows.append(row)
-
-# for row in rows:
-#     print(row)
-
-df = pd.DataFrame(rows)
-df.to_csv("film_database/genre.csv", index=False)
+print("Validation Summary:")
+print(json.dumps(results, indent=4))
