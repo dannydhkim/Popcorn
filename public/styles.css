@@ -13,6 +13,31 @@ body.scaled-down  {
 .appMountPoint,
 body {
   transition: margin-right 0.5s ease-in-out;
+<<<<<<< HEAD
+=======
+
+  /* Sleek Scrollbar Styling */
+.popcorn-sidebar-container::-webkit-scrollbar {
+  width: 8px; /* Adjust scrollbar width */
+}
+
+.popcorn-sidebar-container::-webkit-scrollbar-track {
+  background: #1a1a1a; /* Track color */
+  border-radius: 4px; /* Rounded edges */
+}
+
+.popcorn-sidebar-container::-webkit-scrollbar-thumb {
+  background: #444444; /* Thumb color */
+  border-radius: 4px; /* Rounded edges */
+  border: 2px solid transparent; /* Optional border around thumb */
+  background-clip: content-box; /* Inner shadow effect */
+}
+
+.popcorn-sidebar-container::-webkit-scrollbar-thumb:hover {
+  background: #888888; /* Lighter thumb color on hover */
+}
+
+>>>>>>> 2a90fc59030e40e083371b61e5b7ef1d49f0d2bf
 }
 
 /* .popcorn-sidebar-container.active {

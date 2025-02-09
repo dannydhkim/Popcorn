@@ -47,12 +47,12 @@ const CorneliusButton = ({ toggleSidebar }) => {
     <button
       onClick={toggleSidebar}
       id="native-popcorn-button"
-      className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-r from-rose-600 to-rose-300 bg-clip-padding outline outline-offset-[-0.3] outline-4 outline-rose-200/50 before:absolute before:inset-0 before:rounded-full before:bg-[linear-gradient(135deg,transparent_25%,theme(colors.white/.5)_50%,transparent_75%,transparent_100%)] before:bg-[length:250%_250%,100%_100%] before:bg-[position:200%_0,0_0] before:bg-no-repeat before:[transition:background-position_0s_ease] hover:outline hover:outline-offset-[-0.5] hover:outline-4 hover:outline-white hover:before:bg-[position:-100%_0,0_0] hover:before:duration-[1500ms] focus:outline-none focus:outline-offset-[-0.5] focus:ring-4 focus:ring-white/90 dark:from-rose-200 dark:to-rose-50 dark:before:bg-[linear-gradient(135deg,transparent_25%,theme(colors.white)_50%,transparent_75%,transparent_100%)]"
+      className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-r from-rose-300 to-rose-600 bg-clip-padding outline outline-offset-[-0.3] outline-4 outline-rose-200/50 before:absolute before:inset-0 before:rounded-full before:bg-[linear-gradient(135deg,transparent_25%,theme(colors.white/.5)_50%,transparent_75%,transparent_100%)] before:bg-[length:250%_250%,100%_100%] before:bg-[position:200%_0,0_0] before:bg-no-repeat before:[transition:background-position_0s_ease] hover:outline hover:outline-offset-[-0.5] hover:outline-4 hover:outline-white hover:before:bg-[position:-100%_0,0_0] hover:before:duration-[1500ms] focus:outline-none focus:outline-offset-[-0.5] focus:ring-4 focus:ring-white/90 dark:from-rose-200 dark:to-rose-50 dark:before:bg-[linear-gradient(135deg,transparent_25%,theme(colors.white)_50%,transparent_75%,transparent_100%)]"
     >
       <img
         src={`${imgURL}`}
         alt="Cornelius"
-        className="h-full w-full object-contain"
+        className="h-full w-full will-change-transform transition-transform duration-300 hover:scale-110"
       />
     </button>,
     cbPortalDiv,

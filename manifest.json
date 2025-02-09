@@ -15,7 +15,7 @@
       {
         "js": ["src/content.js"],
         "css": ["public/styles.css"],
-        "resources": ["public/cornelius.svg", "public/cornelius.png", "public/styles.css", ""],
+        "resources": ["public/cornelius.svg", "public/cross-circle.svg", "public/styles.css", ""],
         "matches": ["*://www.netflix.com/*"],
         "run_at": "document_idle"
       }
@@ -31,7 +31,11 @@
   ],
     "web_accessible_resources": [
     {
+<<<<<<< HEAD
       "resources": ["public/cornelius.svg"],
+=======
+      "resources": ["public/cornelius.svg","public/cross-circle.svg"],
+>>>>>>> 2a90fc59030e40e083371b61e5b7ef1d49f0d2bf
       "matches": ["*://*/*"]
     }
   ]
