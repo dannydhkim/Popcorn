@@ -1,10 +1,11 @@
 import boto3
 from boto3.dynamodb.conditions import Key
+import hashlib
 
 class DynamoDBManager:
     def __init__(self, table_name, region_name='us-west-2'):
-        session = boto3.Session(profile_name=profile_name) if profile_name else boto3.Session()
-        self.dynamodb = boto3.resource('dynamodb', region_name=region_name)
+        session = boto3.Session(profile_name='popcorn_dev')
+        self.dynamodb = boto3.client('dynamodb')
         self.table = self.dynamodb.Table(table_name)
 
     def write_item(self, item):
@@ -46,3 +47,7 @@ class DynamoDBManager:
         with table.batch_writer() as batch:
             for index, row in dataframe.iterrows():
                 batch.put_item(Item=row.to_dict())
+
+    def generate_id(title, year):
+        unique_string = f"{title}{year}"
+        return "CONTENT#" + hashlib.sha256(unique_string.encode()).hexdigest()[:8]

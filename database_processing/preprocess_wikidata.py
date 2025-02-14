@@ -20,7 +20,7 @@ def csv_to_dict(filename):
 property_mapping = csv_to_dict('film_database_2/property_mapping.csv')
 
 # Input and output files
-DUMP_FILE = "film_database_2/filtered-data.json.gz"
+DUMP_FILE = "extracted_film_tv_data.json.gz"
 OUTPUT_FILE = "database_processing/processed_extracted_metadata.json"
 
 # Metadata properties of interest
@@ -183,7 +183,7 @@ with gzip.open(DUMP_FILE, "rt", encoding="utf-8") as file:
     for i, line in enumerate(file):
         entity = json.loads(line.strip())
         metadata = {"id": entity.get("id", "Unknown"), "label": entity.get("label"), "labels": entity.get("labels",{}).get("en", {}).get("value", "")}
-        
+
         # Extract metadata fields
         claims = entity.get("claims", {})
         for prop_id, label in METADATA_PROPERTIES.items():
@@ -254,9 +254,6 @@ with gzip.open(DUMP_FILE, "rt", encoding="utf-8") as file:
         metadata.pop("label")
         metadata.pop("labels")
         output_data.append(metadata)  # Save metadata to the list
-
-        # except (json.JSONDecodeError, KeyError):
-        #     continue
 
 # Save all extracted metadata to a JSON file
 with open(OUTPUT_FILE, "w", encoding="utf-8") as outfile:

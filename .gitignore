@@ -74,4 +74,6 @@ node_modules/
 # dataconnect generated files
 .dataconnect
 
-venv/*
+film_database_2/*
+extracted_film_tv_data.json.gz
+processed_extracted_metadata.json
