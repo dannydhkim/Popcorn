@@ -15,6 +15,7 @@ firebase-debug.*.log*
 .firebase/
 film_database/*
 .venv/*
+venv/*
 
 # Firebase config
 

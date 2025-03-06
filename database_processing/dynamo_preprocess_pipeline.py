@@ -2,6 +2,7 @@ import pandas as pd
 import math
 from dateutil.parser import parse
 import numpy as np
+import hashlib
 
 
 df = pd.read_json("database_processing/processed_extracted_metadata.json")
@@ -376,7 +377,17 @@ def flatten_dict(value):
                 row.append(val)
         return row
     return value
+
+def generate_id(title, year):
+    unique_string = f"{title}{year}"
+    return "CONTENT#" + hashlib.sha256(unique_string.encode()).hexdigest()[:16]
     
+def id_from_row(row):
+    title = row['Title']
+    pub_date = row['Publication date']
+    row['uuid'] = generate_id(title, pub_date)
+    return row
+
 initial["Instance of"] = initial.loc[~initial["Instance of"].isin(['Q5']),'Instance of']
 initial["Instance of"] = initial.loc[initial["Instance of"].notnull(),'Instance of']
 initial["Instance of"] = initial["Instance of"].apply(lambda x: clean_instance(x, instance_mapping))
@@ -396,6 +407,9 @@ initial['Publication date'] = pd.to_datetime(initial['Publication date'])
     
 initial = initial.loc[(initial['Title'] != '')]
 initial['Duration'] = initial['Duration'].apply(clean_duration)
+initial['Duration'] = initial['Duration'].replace([np.inf, -np.inf], np.nan)
+initial['Duration'] = initial['Duration'].fillna(0)
+initial['Duration'] = initial['Duration'].round().astype(int)
 
 #Specific Netflix IDs to fix:
 problematic_netflix_ids = ('Q289127', 'Q21001674', 'Q320588', 'Q13897247', 'Q20495759')
@@ -411,4 +425,10 @@ initial.loc[initial['id'].isin(problematic_netflix_ids), 'Netflix ID'] = \
 initial.loc[initial['id'].isin(problematic_disney_movie_ids), 'Disney+ movie ID'] = \
     initial.loc[initial['id'].isin(problematic_disney_movie_ids), 'Disney+ movie ID'].apply(flatten_list)
 
+initial = initial.apply(lambda row: id_from_row(row), axis=1)
+
+initial.rename(columns={'id':'wiki_id', 'uuid':'id','Instance of': 'content_type', 'Duration':'duration','Publication date':'publication_date', 
+                        'Hulu ID': 'hulu_id', 'Netflix ID':'netflix_id', 'Disney+ movie ID': 'disney_movie_id', 'Disney+ series ID': 'disney_series_id'})
+
 initial.to_csv('cleaned_content_data.csv', index=False)
+print("finished processing!")
