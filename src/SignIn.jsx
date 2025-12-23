@@ -1,24 +1,25 @@
 // src/components/SignIn.jsx
 import React, { useState } from 'react';
-import { auth } from '../firebaseConfig';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { supabase } from './supabaseClient.js';
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSignIn = (e) => {
+  const handleSignIn = async (e) => {
     e.preventDefault();
-    signInWithEmailAndPassword(auth, email, password)
-      .then((userCredential) => {
-        // Signed in
-        const user = userCredential.user;
-        // Handle successful sign-in
-      })
-      .catch((error) => {
-        // Handle Errors
-        console.error(error);
-      });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const user = data.user;
+    // Handle successful sign-in
   };
 
   return (

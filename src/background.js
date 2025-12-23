@@ -1,92 +1,59 @@
-import { db } from './firebaseConfig.js';
-import { getFirestore, getDocs, collection, where, query } from 'firebase/firestore';
-import React, { useState, useRef, useEffect } from 'react';
+import { supabase } from './supabaseClient.js';
 
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('Firebase initialized in background script.');
-  });
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-if (message.action === 'getData') {
-    console.log("getting data from Firestore")
-    getCommentsFromFirestore(db, message.videoId).then((data) => {
-      console.log("received data", data)
-      sendResponse({ data });
-    });
-    return true;
-}
+  console.log('Supabase initialized in background script.');
 });
 
-async function getCommentsFromFirestore(db, query_val) {
-  const docSnapshot = await getDataFromFirestore(db, query_val)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'getData') {
+    console.log('getting data from Supabase');
+    getCommentsForVideo(message.videoId)
+      .then((data) => {
+        console.log('received data', data);
+        sendResponse({ data });
+      })
+      .catch((error) => {
+        console.error('failed to fetch comments:', error);
+        sendResponse({ data: [], error: 'failed to fetch comments' });
+      });
+    return true;
+  }
+});
 
-  if (docSnapshot.empty) {
-    console.log("No matching documents found.");
+async function getCommentsForVideo(videoUrl) {
+  const { data: content, error: contentError } = await supabase
+    .from('contents')
+    .select('id')
+    .eq('netflix_url', videoUrl)
+    .maybeSingle();
+
+  if (contentError) {
+    throw contentError;
+  }
+
+  if (!content) {
+    console.log('No matching content found.');
     return [];
   }
-  const firstDocRef = docSnapshot.docs[0].ref
-  const commentsCollectionRef = collection(firstDocRef, 'comments')
 
-  const commentsSnapshot = await getDocs(commentsCollectionRef)
+  const { data: comments, error: commentsError } = await supabase
+    .from('comments')
+    .select('id, author, content, total_vote, created_at, parent_id, content_id')
+    .eq('content_id', content.id)
+    .order('created_at', { ascending: true });
 
-  const comments = commentsSnapshot.docs.map(doc => ({
-    ...doc.data()
-  }));
-
-  return comments
-
-}
-
-async function getDataFromFirestore(db, query_val) {
-  const contentsCol = collection(db, 'contents');  
-  const q = query(contentsCol, where("netflixUrl", "==", query_val));
-  const qidSnapshot = await getDocs(q);
-
-  const qcontentList = qidSnapshot.docs.map(doc => doc.data())
-
-  return qidSnapshot
+  if (commentsError) {
+    throw commentsError;
   }
 
-
-function useComments() {
-  const [comments, setComments] = useState([]);
-
-  useEffect(() => {
-    const unsubscribe = firestore.collection('contents')
-      .orderBy('timestamp', 'asc')
-      .onSnapshot(snapshot => {
-        const commentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setComments(commentsData);
-      });
-
-    return () => unsubscribe();
-  }, []);
-
-  return comments;
+  return comments.map(normalizeComment);
 }
 
-function buildCommentTree(comments) {
-    const commentMap = {};
-    comments.forEach(comment => {
-      comment.children = [];
-      commentMap[comment.id] = comment;
-    });
-  
-    const rootComments = [];
-  
-    comments.forEach(comment => {
-      if (comment.parentId) {
-        const parent = commentMap[comment.parentId];
-        if (parent) {
-          parent.children.push(comment);
-        }
-      } else {
-        rootComments.push(comment);
-      }
-    });
-  
-    return rootComments;
-  }
-
-// console.log(useComments());
-// console.log(buildCommentTree());
+function normalizeComment(comment) {
+  return {
+    ...comment,
+    totalVote: comment.total_vote ?? comment.totalVote ?? 0,
+    parentId: comment.parent_id ?? comment.parentId ?? null,
+    contentId: comment.content_id ?? comment.contentId ?? null,
+  };
+}

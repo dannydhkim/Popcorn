@@ -26,8 +26,7 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://popcorn-extension-default-rtdb.firebaseio.com/*",
-    "https://firestore.googleapis.com/*"
+    "https://avkhnanzljzfhdymsxwa.supabase.co/*"
   ],
     "web_accessible_resources": [
     {

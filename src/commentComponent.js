@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { supabase } from './supabaseClient.js';
 
-function Comment({ comment }) {
+function Comment({ comment, contentId }) {
   const [showReplyForm, setShowReplyForm] = useState(false);
 
   return (
@@ -9,24 +10,32 @@ function Comment({ comment }) {
         <strong>{comment.author}</strong>: {comment.content}
       </div>
       <button onClick={() => setShowReplyForm(!showReplyForm)}>Reply</button>
-      {showReplyForm && <ReplyForm parentId={comment.id} />}
+      {showReplyForm && <ReplyForm parentId={comment.id} contentId={contentId} />}
       {comment.children.map(child => (
-        <Comment key={child.id} comment={child} />
+        <Comment key={child.id} comment={child} contentId={contentId} />
       ))}
     </div>
   );
 }
 
-function ReplyForm({ parentId }) {
+function ReplyForm({ parentId, contentId }) {
   const [content, setContent] = useState('');
 
   const handleSubmit = async () => {
-    await firestore.collection('comments').add({
+    const payload = {
       content,
-      parentId,
+      parent_id: parentId,
       author: 'CurrentUser', // Replace with actual user data
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+      content_id: contentId,
+    };
+
+    const { error } = await supabase.from('comments').insert(payload);
+
+    if (error) {
+      console.error('Failed to submit reply:', error);
+      return;
+    }
+
     setContent('');
   };
 

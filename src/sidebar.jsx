@@ -2,8 +2,6 @@ import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import CommentBox from "./commentBox.js";
 import Banner from "./banner.jsx";
-import { db } from "./firebaseConfig.js";
-import { getFirestore, getDocs, collection } from "firebase/firestore";
 // import useComments from 'comment'
 
 function PopcornSidebar({ isOpen, closeSidebar, commentData, loading }) {
