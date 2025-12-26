@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Popcorn",
+  "description": "Reddit-style episode comments in a streaming sidebar.",
+  "version": "0.1.0",
+  "icons": {
+    "16": "cornelius.png",
+    "32": "cornelius.png",
+    "48": "cornelius.png",
+    "128": "cornelius.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.netflix.com/*", "https://www.disneyplus.com/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": ["https://*.supabase.co/*", "https://api.themoviedb.org/*"],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.css", "cornelius.png", "cornelius.svg"],
+      "matches": ["https://www.netflix.com/*", "https://www.disneyplus.com/*"]
+    }
+  ]
+}
