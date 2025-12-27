@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:extension": "vite build --mode extension",
+    "dev:extension": "vite build --watch --mode extension",
     "preview": "vite preview"
   },
   "dependencies": {

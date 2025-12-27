@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import CommentBox from './commentBox';
 import { getProviderLabel } from './contentSources';
 import {
@@ -14,6 +15,75 @@ import {
 } from './supabaseClient';
 import { isTmdbConfigured } from './tmdb';
 
+const PLAY_BUTTON_SELECTORS = [
+  'a.primary-button.playLink',
+  'button[data-testid="play-button"]',
+  'button[aria-label="Play"]',
+  'button[aria-label*="Play"]',
+  '[data-uia="play-button"]'
+];
+
+const findPlayButton = () => {
+  for (const selector of PLAY_BUTTON_SELECTORS) {
+    const match = document.querySelector(selector);
+    if (match) return match;
+  }
+  return null;
+};
+
+const CorneliusToggle = ({ isOpen, onToggle }) => {
+  const [portalTarget, setPortalTarget] = useState(null);
+
+  useEffect(() => {
+    if (!document.body) return undefined;
+    let mounted = true;
+    let currentPortal = null;
+
+    const ensurePortal = () => {
+      const target = findPlayButton();
+      if (!target?.parentElement) return;
+
+      let portal = target.parentElement.querySelector('.cornelius-portal');
+      if (!portal) {
+        portal = document.createElement('div');
+        portal.className = 'cornelius-portal';
+        target.parentElement.insertBefore(portal, target.nextSibling);
+      }
+
+      if (mounted && portal !== currentPortal) {
+        currentPortal = portal;
+        setPortalTarget(portal);
+      }
+    };
+
+    const observer = new MutationObserver(ensurePortal);
+    observer.observe(document.body, { childList: true, subtree: true });
+    ensurePortal();
+
+    return () => {
+      mounted = false;
+      observer.disconnect();
+    };
+  }, []);
+
+  if (!portalTarget) return null;
+  const iconUrl = chrome.runtime.getURL('cornelius.svg');
+
+  return createPortal(
+    <button
+      className={`popcorn-cornelius-button${isOpen ? ' is-open' : ''}`}
+      type="button"
+      onClick={onToggle}
+      aria-pressed={isOpen}
+      aria-label="Toggle Popcorn sidebar"
+    >
+      <img className="popcorn-cornelius-icon" src={iconUrl} alt="Popcorn" />
+    </button>,
+    portalTarget
+  );
+};
+
+// Convert ISO timestamps to a compact "time ago" string.
 const timeAgo = (timestamp) => {
   if (!timestamp) return '';
   const delta = Date.now() - new Date(timestamp).getTime();
@@ -28,6 +98,7 @@ const timeAgo = (timestamp) => {
   return `${days}d`;
 };
 
+// Stateless row renderer for a single comment.
 const CommentRow = ({ comment, index, onVote }) => {
   const score = Number.isFinite(comment.score) ? comment.score : 0;
 
@@ -67,23 +138,28 @@ const CommentRow = ({ comment, index, onVote }) => {
   );
 };
 
+// Main sidebar UI driven by current content and Supabase data.
 const SidebarApp = ({ content, isOpen, onToggle }) => {
+  // Thread + comments.
   const [thread, setThread] = useState(null);
   const [comments, setComments] = useState([]);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
+  // Catalog metadata (content_catalog + mapping) state.
   const [catalogEntry, setCatalogEntry] = useState(null);
   const [catalogStatus, setCatalogStatus] = useState('idle');
   const [catalogError, setCatalogError] = useState('');
   const [catalogDismissed, setCatalogDismissed] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
+  // Content readiness and labels for the header.
   const isReady = Boolean(content && content.key);
   const providerLabel = content?.provider
     ? getProviderLabel(content.provider)
     : 'Streaming';
   const badgeLabel = content?.source === 'preview' ? 'Preview' : 'Page';
 
+  // Collate display metadata from catalog or TMDB fallback.
   const displayTitle =
     catalogEntry?.title ||
     content?.tmdb?.title ||
@@ -106,16 +182,19 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
   const tmdbLink =
     catalogEntry?.tmdb_metadata?.tmdbUrl || content?.tmdb?.tmdbUrl || '';
 
+  // Helper message for missing Supabase config.
   const connectionMessage = useMemo(() => {
     if (isSupabaseConfigured) return '';
     return 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env to connect.';
   }, []);
 
+  // Helper message for missing TMDB config.
   const tmdbMessage = useMemo(() => {
     if (isTmdbConfigured) return '';
     return 'Add VITE_TMDB_API_KEY to .env for title + genre metadata.';
   }, []);
 
+  // Load catalog metadata for this provider id.
   useEffect(() => {
     let isActive = true;
 
@@ -158,6 +237,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     };
   }, [content?.provider, content?.providerId, isReady, isSupabaseConfigured]);
 
+  // Load thread and comments whenever the content changes.
   useEffect(() => {
     let isActive = true;
 
@@ -209,9 +289,11 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     };
   }, [content?.key, content?.title, content?.url, isReady]);
 
+  // Show the TMDB confirmation UI only when catalog data is missing.
   const candidateAvailable =
     catalogStatus === 'missing' && Boolean(content?.tmdb) && !catalogDismissed;
 
+  // Persist the chosen TMDB match into the catalog + mapping tables.
   const handleConfirmCandidate = async () => {
     if (!content?.tmdb || !content?.provider || !content?.providerId) return;
 
@@ -248,6 +330,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     }
   };
 
+  // Create a new comment and prepend it in the UI.
   const handleSubmit = async (text) => {
     if (!thread) return;
     const nextComment = await createComment({
@@ -257,6 +340,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     setComments((prev) => [nextComment, ...prev]);
   };
 
+  // Optimistically update the vote UI and roll back on error.
   const handleVote = async (comment, nextScore) => {
     const previousScore = Number.isFinite(comment.score) ? comment.score : 0;
 
@@ -282,18 +366,10 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
 
   return (
     <div className="popcorn-shell">
-      <button
-        className={`popcorn-toggle ${isOpen ? 'is-open' : ''}`}
-        type="button"
-        onClick={onToggle}
-        aria-expanded={isOpen}
-        aria-label="Toggle Popcorn sidebar"
-      >
-        <span className="popcorn-toggle-dot" />
-        <span className="popcorn-toggle-text">Popcorn</span>
-      </button>
+      <CorneliusToggle isOpen={isOpen} onToggle={onToggle} />
 
       <aside className="popcorn-sidebar" aria-hidden={!isOpen}>
+        {/* Title, provider, and summary metadata */}
         <header className="popcorn-header">
           <div>
             <div className="popcorn-brand">Popcorn</div>
@@ -304,6 +380,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
           </span>
         </header>
 
+        {/* Primary content summary */}
         <section className="popcorn-hero">
           <h2>{displayTitle}</h2>
           {metadataLine ? (
@@ -341,6 +418,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
           ) : null}
         </section>
 
+        {/* Optional TMDB confirmation prompt */}
         {candidateAvailable ? (
           <section className="popcorn-candidate">
             <div className="popcorn-section-title">
@@ -410,6 +488,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
           </section>
         ) : null}
 
+        {/* Comment composer */}
         <section className="popcorn-compose">
           <div className="popcorn-section-title">Start the thread</div>
           <CommentBox
@@ -424,6 +503,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
           ) : null}
         </section>
 
+        {/* Comments list */}
         <section className="popcorn-comments">
           <div className="popcorn-section-title">Hot takes</div>
           {status === 'loading' ? (

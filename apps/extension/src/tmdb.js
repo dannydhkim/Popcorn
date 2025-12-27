@@ -1,17 +1,21 @@
+// Configuration for the TMDB API.
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w342';
 
 export const isTmdbConfigured = Boolean(TMDB_API_KEY);
 
+// Cache in-flight + resolved lookups by provider + normalized title.
 const cache = new Map();
 
+// Normalize strings for comparison and cache keys.
 const normalize = (value) =>
   (value || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
+// Fetch helper that applies API key, language, and params.
 const fetchTmdb = async (path, params = {}) => {
   if (!TMDB_API_KEY) throw new Error('TMDB is not configured.');
 
@@ -31,6 +35,7 @@ const fetchTmdb = async (path, params = {}) => {
   return response.json();
 };
 
+// Choose the most likely match from TMDB search results.
 const pickBestMatch = (results, query) => {
   if (!results || results.length === 0) return null;
   const normalizedQuery = normalize(query);
@@ -44,6 +49,7 @@ const pickBestMatch = (results, query) => {
   return results[0];
 };
 
+// Convert TMDB details into the metadata shape used by the app.
 const formatMetadata = (details, match, query) => {
   if (!details || !match) return null;
   const releaseDate = details.release_date || details.first_air_date || '';
@@ -71,10 +77,12 @@ const formatMetadata = (details, match, query) => {
   };
 };
 
+// Public entry point: look up TMDB metadata for a content record.
 export const getTmdbMetadata = async (content) => {
   const query = content?.title;
   if (!query) return null;
 
+  // Cache by provider id + normalized title to avoid repeat calls.
   const cacheKey = `${content.provider}:${content.providerId}:${normalize(query)}`;
   if (cache.has(cacheKey)) {
     return cache.get(cacheKey);
@@ -95,6 +103,7 @@ export const getTmdbMetadata = async (content) => {
 
     return formatMetadata(details, match, query);
   })().catch((error) => {
+    // Remove failed lookups so a later attempt can retry.
     cache.delete(cacheKey);
     throw error;
   });

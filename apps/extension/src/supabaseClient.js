@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Environment-based config for Supabase access.
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+// Use a stateless client because the extension does not need auth sessions.
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: false,
@@ -13,12 +15,15 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   }
 });
 
+// Stable local viewer identifier for voting and attribution.
 const viewerKey = 'popcorn_viewer_id';
+// Detect missing schema errors for optional tables.
 const isMissingRelation = (error) =>
   error?.code === '42P01' ||
   error?.message?.includes('does not exist') ||
   error?.message?.includes('relation');
 
+// Get or create a pseudo-anonymous id in localStorage.
 export const getViewerId = () => {
   try {
     const cached = window.localStorage.getItem(viewerKey);
@@ -33,6 +38,7 @@ export const getViewerId = () => {
   }
 };
 
+// Find or create a thread row for the current content key.
 export const ensureThread = async ({
   contentKey,
   contentTitle,
@@ -43,6 +49,7 @@ export const ensureThread = async ({
 }) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
+  // Attempt to load an existing thread before inserting.
   const { data: existing, error } = await supabase
     .from('threads')
     .select('*')
@@ -52,6 +59,7 @@ export const ensureThread = async ({
   if (error) throw error;
   if (existing) return existing;
 
+  // Full insert payload for newer schemas.
   const payload = {
     content_key: contentKey,
     content_title: contentTitle,
@@ -67,6 +75,7 @@ export const ensureThread = async ({
     .select('*')
     .single();
 
+  // Fallback for older schemas missing new columns.
   const missingColumn =
     insertError?.code === '42703' ||
     insertError?.code === 'PGRST204' ||
@@ -91,6 +100,7 @@ export const ensureThread = async ({
   return created;
 };
 
+// Load the latest comments for a thread.
 export const fetchComments = async (threadId) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
@@ -104,9 +114,11 @@ export const fetchComments = async (threadId) => {
   return data || [];
 };
 
+// Insert a new comment record.
 export const createComment = async ({ threadId, body, parentId = null }) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
+  // Generate a simple display name based on the local id.
   const authorId = getViewerId();
 
   const { data, error } = await supabase
@@ -126,6 +138,7 @@ export const createComment = async ({ threadId, body, parentId = null }) => {
   return data;
 };
 
+// Update the cached score for a comment.
 export const updateCommentScore = async ({ commentId, score }) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
@@ -140,6 +153,7 @@ export const updateCommentScore = async ({ commentId, score }) => {
   return data;
 };
 
+// Resolve the catalog entry mapped to a provider id.
 export const fetchContentCatalog = async ({ provider, providerId }) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
@@ -158,6 +172,7 @@ export const fetchContentCatalog = async ({ provider, providerId }) => {
   return data?.content_catalog || null;
 };
 
+// Insert a catalog entry based on TMDB data, or return an existing one.
 export const upsertContentCatalogFromTmdb = async (tmdbMetadata) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
   if (!tmdbMetadata?.id || !tmdbMetadata?.mediaType) {
@@ -178,6 +193,7 @@ export const upsertContentCatalogFromTmdb = async (tmdbMetadata) => {
 
   if (existing) return existing;
 
+  // Shape the TMDB metadata into catalog columns.
   const payload = {
     tmdb_id: tmdbMetadata.id,
     tmdb_type: tmdbMetadata.mediaType,
@@ -197,6 +213,7 @@ export const upsertContentCatalogFromTmdb = async (tmdbMetadata) => {
     .select('*')
     .single();
 
+  // Unique constraint safety net for concurrent inserts.
   if (error?.code === '23505') {
     const { data: fallback, error: fallbackError } = await supabase
       .from('content_catalog')
@@ -213,6 +230,7 @@ export const upsertContentCatalogFromTmdb = async (tmdbMetadata) => {
   return data;
 };
 
+// Upsert the mapping between provider id and catalog entry.
 export const confirmContentMapping = async ({
   provider,
   providerId,

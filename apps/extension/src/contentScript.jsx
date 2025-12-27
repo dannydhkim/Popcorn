@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client';
 import SidebarApp from './SidebarApp';
 import { enrichContentWithTmdb, getActiveContent } from './contentSources';
 
+// DOM ids used to locate the injected host + style elements.
 const HOST_ID = 'popcorn-extension-host';
 const STYLE_ID = 'popcorn-extension-style';
 
+// Shared state for the injected sidebar lifecycle.
 let root = null;
 let host = null;
 let currentKey = null;
@@ -14,6 +16,7 @@ let isOpen = false;
 let syncQueued = false;
 let tmdbRequestId = 0;
 
+// Inject global page-level styles for layout shifts when the sidebar opens.
 const ensureGlobalStyles = () => {
   if (document.getElementById(STYLE_ID)) return;
 
@@ -21,7 +24,7 @@ const ensureGlobalStyles = () => {
   style.id = STYLE_ID;
   style.textContent = `
     :root {
-      --popcorn-sidebar-width: min(420px, 85vw);
+      --popcorn-sidebar-width: min(420px, 25vw);
     }
 
     body.popcorn-sidebar-open,
@@ -30,11 +33,48 @@ const ensureGlobalStyles = () => {
       margin-right: var(--popcorn-sidebar-width);
       transition: margin-right 0.3s ease-in-out;
     }
+
+    .cornelius-portal {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 12px;
+    }
+
+    .popcorn-cornelius-button {
+      border: none;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ffffff 0%, #ef3e3a 100%);
+      width: 54px;
+      height: 54px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      padding: 4px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .popcorn-cornelius-button:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
+    }
+
+    .popcorn-cornelius-button.is-open {
+      box-shadow: 0 0 0 3px rgba(239, 62, 58, 0.45);
+    }
+
+    .popcorn-cornelius-icon {
+      width: 44px;
+      height: 44px;
+      display: block;
+    }
   `;
 
   document.head.appendChild(style);
 };
 
+// Create or re-use the shadow root host for the sidebar React tree.
 const ensureHost = () => {
   const existing = document.getElementById(HOST_ID);
   if (existing) {
@@ -68,6 +108,7 @@ const ensureHost = () => {
   mount.__popcornRoot = root;
 };
 
+// Render the sidebar UI into the shadow root.
 const render = () => {
   if (!root) return;
   root.render(
@@ -79,6 +120,7 @@ const render = () => {
   );
 };
 
+// Toggle UI state and sync the host DOM attributes.
 const setOpen = (nextOpen) => {
   isOpen = nextOpen;
   if (host) {
@@ -88,6 +130,7 @@ const setOpen = (nextOpen) => {
   render();
 };
 
+// Pull active content, update state, and attach TMDB metadata.
 const syncContent = () => {
   const nextContent = getActiveContent();
 
@@ -115,6 +158,7 @@ const syncContent = () => {
   });
 };
 
+// Batch repeated DOM mutations into a single sync pass.
 const scheduleSync = () => {
   if (syncQueued) return;
   syncQueued = true;
@@ -124,6 +168,7 @@ const scheduleSync = () => {
   });
 };
 
+// Watch for navigation and DOM changes that imply content changed.
 const observePage = () => {
   if (!document.body) return;
   if (!window.__popcornObserver) {
@@ -165,6 +210,7 @@ const observePage = () => {
   }
 };
 
+// Bootstraps the sidebar into the page and starts observation.
 const init = () => {
   if (!document.body) {
     window.setTimeout(init, 50);
