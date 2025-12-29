@@ -10,6 +10,7 @@ import {
   fetchContentCatalog,
   getViewerId,
   isSupabaseConfigured,
+  supabase,
   updateCommentScore,
   upsertContentCatalogFromTmdb
 } from './supabaseClient';
@@ -289,6 +290,51 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     };
   }, [content?.key, content?.title, content?.url, isReady]);
 
+  // Listen for comment updates on the active thread.
+  useEffect(() => {
+    if (!thread?.id || !isSupabaseConfigured) return undefined;
+
+    let isActive = true;
+    const channel = supabase
+      .channel(`comments:${thread.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comments',
+          filter: `thread_id=eq.${thread.id}`
+        },
+        (payload) => {
+          if (!isActive) return;
+          setComments((prev) => {
+            if (payload.eventType === 'INSERT') {
+              const exists = prev.some((comment) => comment.id === payload.new?.id);
+              if (exists) return prev;
+              return payload.new ? [payload.new, ...prev] : prev;
+            }
+            if (payload.eventType === 'UPDATE') {
+              if (!payload.new) return prev;
+              return prev.map((comment) =>
+                comment.id === payload.new.id ? { ...comment, ...payload.new } : comment
+              );
+            }
+            if (payload.eventType === 'DELETE') {
+              if (!payload.old) return prev;
+              return prev.filter((comment) => comment.id !== payload.old.id);
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isActive = false;
+      supabase.removeChannel(channel);
+    };
+  }, [thread?.id, isSupabaseConfigured]);
+
   // Show the TMDB confirmation UI only when catalog data is missing.
   const candidateAvailable =
     catalogStatus === 'missing' && Boolean(content?.tmdb) && !catalogDismissed;
@@ -372,8 +418,8 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
         {/* Title, provider, and summary metadata */}
         <header className="popcorn-header">
           <div>
-            <div className="popcorn-brand">Popcorn</div>
-            <div className="popcorn-tagline">Live takes per title</div>
+            <div className="popcorn-brand">Popcorn!</div>
+            <div className="popcorn-tagline">Give your hottest takes</div>
           </div>
           <span className="popcorn-badge">
             {providerLabel} {badgeLabel}

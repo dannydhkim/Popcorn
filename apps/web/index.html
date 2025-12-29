@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ReelTok — Short reactions for movies & TV</title>
+  <meta name="description" content="ReelTok helps people discover movies and TV through short reactions, lists, and recommendations." />
+  <style>
+    :root { --max: 980px; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; background:#fff; }
+    a { color: inherit; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 28px 18px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .logo { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.2px; }
+    .mark { width:34px; height:34px; border-radius:10px; background:#111; display:inline-block; }
+    .pill { display:inline-flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #ddd; border-radius:999px; text-decoration:none; }
+    .hero { padding: 56px 0 22px; display:grid; grid-template-columns: 1.2fr .8fr; gap: 22px; }
+    h1 { font-size: clamp(34px, 5vw, 54px); line-height:1.05; margin:0 0 12px; }
+    .sub { font-size: 18px; line-height:1.5; color:#333; margin:0 0 18px; }
+    .cta { display:flex; flex-wrap:wrap; gap:12px; margin-top: 18px; }
+    .btn { padding:12px 16px; border-radius:12px; border:1px solid #111; text-decoration:none; display:inline-flex; gap:10px; align-items:center; }
+    .btn.primary { background:#111; color:#fff; }
+    .card { border:1px solid #e6e6e6; border-radius:18px; padding:16px; background:#fafafa; }
+    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin: 18px 0 0; }
+    .feat h3 { margin: 0 0 8px; font-size: 16px; }
+    .feat p { margin: 0; color:#444; font-size: 14px; line-height:1.45; }
+    .section { padding: 34px 0; border-top: 1px solid #eee; }
+    .section h2 { margin:0 0 10px; font-size: 22px; }
+    .muted { color:#444; line-height:1.55; }
+    .mini { font-size: 12px; color:#666; line-height:1.45; }
+    footer { padding: 24px 0; border-top: 1px solid #eee; }
+    .row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
+    @media (max-width: 840px) {
+      .hero { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">
+        <span class="mark" aria-hidden="true"></span>
+        <span>ReelTok</span>
+      </div>
+      <a class="pill" href="#contact">Contact</a>
+    </header>
+
+    <main class="hero">
+      <div>
+        <h1>Short reactions for movies & TV.</h1>
+        <p class="sub">
+          ReelTok helps people discover what to watch through bite-sized reactions,
+          curated lists, and community recommendations.
+        </p>
+
+        <div class="cta">
+          <a class="btn primary" href="#about">What is ReelTok?</a>
+          <a class="btn" href="#contact">Request info / partnerships</a>
+        </div>
+
+        <div class="grid">
+          <div class="card feat">
+            <h3>Discovery-first</h3>
+            <p>Quick takes help users decide faster than scrolling endless catalogs.</p>
+          </div>
+          <div class="card feat">
+            <h3>Community signal</h3>
+            <p>Reactions and lists surface what’s trending with real people.</p>
+          </div>
+          <div class="card feat">
+            <h3>Metadata powered</h3>
+            <p>Uses public movie/TV metadata (titles, posters, cast, genres) to organize content.</p>
+          </div>
+        </div>
+
+        <p class="mini" style="margin-top:14px;">
+          Note: ReelTok is an independent product and is not affiliated with any streaming service.
+        </p>
+      </div>
+
+      <aside class="card">
+        <h2 style="margin:0 0 8px;">Current status</h2>
+        <p class="muted" style="margin:0 0 14px;">
+          Early-stage prototype. Building a clean user experience for discovering movies/TV through
+          short reactions and curated lists.
+        </p>
+        <ul class="muted" style="margin:0; padding-left:18px;">
+          <li>Simple browsing by movie/TV title</li>
+          <li>Short reaction posts & comments</li>
+          <li>User collections (watchlist, favorites)</li>
+          <li>Recommendations based on engagement</li>
+        </ul>
+      </aside>
+    </main>
+
+    <section id="about" class="section">
+      <h2>About</h2>
+      <p class="muted">
+        ReelTok is a social discovery layer for film and television. Users can browse titles,
+        post short reactions, follow creators, and build lists. To accurately label content and
+        improve discovery, ReelTok uses a third-party metadata provider for title information such
+        as posters, descriptions, cast, and genres.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>How we use movie data</h2>
+      <div class="card">
+        <p class="muted" style="margin:0 0 10px;">
+          ReelTok uses metadata for:
+        </p>
+        <ul class="muted" style="margin:0; padding-left:18px;">
+          <li>Searching and matching titles (movie/TV)</li>
+          <li>Displaying posters and basic title details</li>
+          <li>Tagging posts and lists to the correct title</li>
+          <li>Linking to cast/crew and genre context</li>
+        </ul>
+        <p class="mini" style="margin:10px 0 0;">
+          ReelTok does not provide full video, stream content, or host copyrighted media.
+        </p>
+      </div>
+    </section>
+
+    <section id="contact" class="section">
+      <h2>Contact</h2>
+      <p class="muted" style="margin-top:0;">
+        For API, partnership, or developer inquiries:
+      </p>
+
+      <!-- Option A: mailto (fastest) -->
+      <div class="card">
+        <p class="muted" style="margin:0 0 10px;">
+          Email:
+          <a href="mailto:contact@reeltok.app?subject=ReelTok%20API%20Inquiry&body=Hi%20ReelTok%20team%2C%0A%0AI%27m%20reaching%20out%20about%20API%20usage%20and%20metadata%20needs.%0A%0A-%20Name%3A%0A-%20Role%3A%0A-%20Use%20case%3A%0A-%20Expected%20traffic%3A%0A%0AThanks%21">
+            contact@reeltok.app
+          </a>
+        </p>
+        <p class="mini" style="margin:0;">
+          Replace this email with your real contact address (or use a Google Form).
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="row">
+        <div class="mini">© <span id="y"></span> ReelTok</div>
+        <div class="mini">
+          <a href="#about">About</a> · <a href="#contact">Contact</a>
+          <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a>
+        </div>
+      </div>
+      <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+    </footer>
+  </div>
+</body>
+</html>
