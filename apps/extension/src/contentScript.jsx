@@ -49,7 +49,7 @@ const ensureGlobalStyles = () => {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8);
       cursor: pointer;
       padding: 4px;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -57,11 +57,15 @@ const ensureGlobalStyles = () => {
 
     .popcorn-cornelius-button:hover {
       transform: translateY(-1px) scale(1.02);
-      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.8);
+    }
+
+    .popcorn-cornelius-button.is-closed {
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.8);
     }
 
     .popcorn-cornelius-button.is-open {
-      box-shadow: 0 0 0 3px rgba(239, 62, 58, 0.45);
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.8);
     }
 
     .popcorn-cornelius-icon {
