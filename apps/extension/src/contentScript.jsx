@@ -6,15 +6,22 @@ import { enrichContentWithTmdb, getActiveContent } from './contentSources';
 // DOM ids used to locate the injected host + style elements.
 const HOST_ID = 'popcorn-extension-host';
 const STYLE_ID = 'popcorn-extension-style';
+const FRAME_ID = 'popcorn-extension-frame';
 
 // Shared state for the injected sidebar lifecycle.
 let root = null;
 let host = null;
-let currentKey = null;
+let frame = null;
+let currentPlatformItemId = null;
 let currentContent = null;
 let isOpen = false;
+let isVideoPlayer = false;
 let syncQueued = false;
 let tmdbRequestId = 0;
+let isClosing = false;
+let closeTimer = null;
+
+const CLOSE_ANIMATION_MS = 350;
 
 // Inject global page-level styles for layout shifts when the sidebar opens.
 const ensureGlobalStyles = () => {
@@ -27,11 +34,63 @@ const ensureGlobalStyles = () => {
       --popcorn-sidebar-width: min(420px, 25vw);
     }
 
-    body.popcorn-sidebar-open,
-    body.popcorn-sidebar-open .appMountPoint,
-    body.popcorn-sidebar-open [data-uia="preview-modal-container-DETAIL_MODAL"] {
-      margin-right: var(--popcorn-sidebar-width);
-      transition: margin-right 0.3s ease-in-out;
+    body.popcorn-video-player .watch-video,
+    body.popcorn-video-player [data-uia="watch-video"],
+    body.popcorn-video-player .watch-video--player-view,
+    body.popcorn-video-player [data-uia="watch-video-player-view-minimized"],
+    body.popcorn-video-player [data-uia="player"],
+    body.popcorn-video-player [data-uia="player-controls"],
+    body.popcorn-video-player [data-uia="player-controls-container"],
+    body.popcorn-video-player .watch-video--evidence-overlay-container,
+    body.popcorn-video-player [data-uia="evidence-overlay"],
+    body.popcorn-video-player [data-uia="video-canvas"] {
+      transition: width 0.35s cubic-bezier(0.2, 0, 0, 1), max-width 0.35s cubic-bezier(0.2, 0, 0, 1), right 0.35s cubic-bezier(0.2, 0, 0, 1), left 0.35s cubic-bezier(0.2, 0, 0, 1) !important;
+      will-change: width, max-width, right, left;
+    }
+
+    body.popcorn-video-player video {
+      transition: left 0.35s cubic-bezier(0.2, 0, 0, 1) !important;
+      will-change: left;
+    }
+
+    body.popcorn-video-player.popcorn-sidebar-open .watch-video,
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="watch-video"] {
+      width: calc(100% - var(--popcorn-sidebar-width)) !important;
+      max-width: calc(100% - var(--popcorn-sidebar-width )) !important;
+      left: 0 !important;
+      box-sizing: border-box;
+    }
+
+    body.popcorn-video-player.popcorn-sidebar-open .watch-video [data-uia="watch-video"],
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="watch-video"] .watch-video {
+      width: 100% !important;
+      max-width: 100% !important;
+      right: 0 !important;
+      left: 0 !important;
+      box-sizing: border-box;
+    }
+
+    body.popcorn-video-player.popcorn-sidebar-open .watch-video--player-view,
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="watch-video-player-view-minimized"],
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="player"],
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="player-controls"],
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="player-controls-container"],
+    body.popcorn-video-player.popcorn-sidebar-open .watch-video--evidence-overlay-container,
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="evidence-overlay"],
+    body.popcorn-video-player.popcorn-sidebar-open [data-uia="video-canvas"] {
+      width: 100% !important;
+      max-width: 100% !important;
+      right: 0 !important;
+      left: 0 !important;
+      box-sizing: border-box;
+    }
+
+    body.popcorn-video-player.popcorn-sidebar-open video {
+      width: 100% !important;
+      max-width: 100% !important;
+      height: 100% !important;
+      left: calc(100%-var(--popcorn-sidebar-width)) !important;
+      right: 0 !important;
     }
 
     .cornelius-portal {
@@ -78,38 +137,111 @@ const ensureGlobalStyles = () => {
   document.head.appendChild(style);
 };
 
-// Create or re-use the shadow root host for the sidebar React tree.
+const buildFrameHtml = () => {
+  const cssUrl = chrome.runtime.getURL('sidebar.css');
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="${cssUrl}" />
+  </head>
+  <body>
+    <div id="popcorn-extension-root"></div>
+  </body>
+</html>`;
+};
+
+const ensureFrameRoot = () => {
+  const frameDocument = frame?.contentDocument;
+  if (!frameDocument) return;
+  const mount = frameDocument.getElementById('popcorn-extension-root');
+  if (!mount) return;
+  if (mount.__popcornRoot) {
+    root = mount.__popcornRoot;
+    return;
+  }
+  root = createRoot(mount);
+  mount.__popcornRoot = root;
+};
+
+const syncFrameStyle = () => {
+  if (!frame) return;
+  const shouldShowEdge = isVideoPlayer && !isOpen;
+  const width = isOpen || isClosing
+    ? 'var(--popcorn-sidebar-width)'
+    : shouldShowEdge
+    ? '120px'
+    : '0px';
+  frame.style.width = width;
+  frame.style.height = '100vh'
+  frame.style.position = 'fixed';
+  frame.style.top = shouldShowEdge ?'10vh' :'0';
+  frame.style.right = '0';
+  frame.style.border = '0';
+  frame.style.background = 'transparent';
+  frame.style.zIndex = '2147483646';
+  frame.style.pointerEvents = isOpen || (!isClosing && shouldShowEdge) ? 'auto' : 'none';
+};
+
+// Create or re-use the iframe host for the sidebar React tree.
 const ensureHost = () => {
   const existing = document.getElementById(HOST_ID);
   if (existing) {
     host = existing;
-    const mount = host.shadowRoot?.getElementById('popcorn-extension-root');
-    if (mount && mount.__popcornRoot) {
-      root = mount.__popcornRoot;
-    } else if (mount) {
-      root = createRoot(mount);
-      mount.__popcornRoot = root;
+    frame = host.querySelector('iframe');
+    if (frame) {
+      if (frame.contentDocument?.readyState === 'complete') {
+        ensureFrameRoot();
+      } else {
+        frame.addEventListener('load', () => {
+          ensureFrameRoot();
+          render();
+        });
+      }
     }
     return;
   }
 
   host = document.createElement('div');
   host.id = HOST_ID;
+  host.style.position = 'fixed';
+  host.style.top = '0';
+  host.style.right = '0';
+  host.style.width = '0';
+  host.style.height = '0';
+  host.style.zIndex = '2147483647';
+  host.style.pointerEvents = 'none';
 
-  const shadow = host.attachShadow({ mode: 'open' });
-  const styleLink = document.createElement('link');
-  styleLink.rel = 'stylesheet';
-  styleLink.href = chrome.runtime.getURL('sidebar.css');
-
-  const mount = document.createElement('div');
-  mount.id = 'popcorn-extension-root';
-
-  shadow.appendChild(styleLink);
-  shadow.appendChild(mount);
+  frame = document.createElement('iframe');
+  frame.id = FRAME_ID;
+  frame.setAttribute('title', 'Popcorn sidebar');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.srcdoc = buildFrameHtml();
+  frame.addEventListener('load', () => {
+    ensureFrameRoot();
+    render();
+  });
+  host.appendChild(frame);
 
   document.body.appendChild(host);
-  root = createRoot(mount);
-  mount.__popcornRoot = root;
+  syncFrameStyle();
+};
+
+const syncBodyClasses = () => {
+  if (!document.body) return;
+  document.body.classList.toggle('popcorn-sidebar-open', isOpen);
+  document.body.classList.toggle('popcorn-video-player', isVideoPlayer);
+  syncFrameStyle();
+};
+
+const isVideoPlayerPath = () => window.location.pathname.includes('/watch');
+
+const getVideoPlayerMode = (content) => {
+  if (content?.provider === 'netflix' && content?.providerType === 'watch') {
+    return true;
+  }
+  return isVideoPlayerPath();
 };
 
 // Render the sidebar UI into the shadow root.
@@ -119,6 +251,7 @@ const render = () => {
     <SidebarApp
       content={currentContent}
       isOpen={isOpen}
+      isVideoPlayer={isVideoPlayer}
       onToggle={() => setOpen(!isOpen)}
     />
   );
@@ -127,36 +260,58 @@ const render = () => {
 // Toggle UI state and sync the host DOM attributes.
 const setOpen = (nextOpen) => {
   isOpen = nextOpen;
+  if (closeTimer) {
+    window.clearTimeout(closeTimer);
+    closeTimer = null;
+  }
+  if (!nextOpen) {
+    isClosing = true;
+    closeTimer = window.setTimeout(() => {
+      isClosing = false;
+      syncFrameStyle();
+    }, CLOSE_ANIMATION_MS);
+  } else {
+    isClosing = false;
+  }
   if (host) {
     host.setAttribute('data-open', String(nextOpen));
   }
-  document.body.classList.toggle('popcorn-sidebar-open', nextOpen);
+  syncBodyClasses();
   render();
 };
 
 // Pull active content, update state, and attach TMDB metadata.
 const syncContent = () => {
   const nextContent = getActiveContent();
+  
+  const nextIsVideoPlayer = getVideoPlayerMode(nextContent);
+  if (nextIsVideoPlayer !== isVideoPlayer) {
+    isVideoPlayer = nextIsVideoPlayer;
+    syncBodyClasses();
+    render();
+  }
 
-  if (!nextContent?.key) {
-    if (currentKey !== null) {
-      currentKey = null;
+  if (!nextContent?.platformItemId) {
+    if (currentPlatformItemId !== null) {
+      currentPlatformItemId = null;
       currentContent = null;
       render();
     }
     return;
   }
 
-  if (nextContent.key === currentKey) return;
-  currentKey = nextContent.key;
+  if (nextContent.platformItemId === currentPlatformItemId) return;
+  currentPlatformItemId = nextContent.platformItemId;
   currentContent = nextContent;
   render();
+
+  console.log('currentContent', currentContent)
 
   const requestId = ++tmdbRequestId;
   enrichContentWithTmdb(nextContent).then((enriched) => {
     if (!enriched) return;
     if (requestId !== tmdbRequestId) return;
-    if (currentKey !== nextContent.key) return;
+    if (currentPlatformItemId !== nextContent.platformItemId) return;
     currentContent = enriched;
     render();
   });
@@ -211,6 +366,15 @@ const observePage = () => {
     };
     window.addEventListener('keydown', handler);
     window.__popcornKeyHandler = handler;
+  }
+
+  if (!window.__popcornHoverHandler) {
+    const handler = () => {
+      scheduleSync();
+    };
+    document.addEventListener('pointerover', handler, true);
+    document.addEventListener('focusin', handler, true);
+    window.__popcornHoverHandler = handler;
   }
 };
 

@@ -5,9 +5,14 @@ const UUID_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 const DISNEY_HOSTS = new Set(['disneyplus.com', 'www.disneyplus.com']);
 // Fallback title when the DOM does not provide one.
 const DEFAULT_TITLE = 'Disney+ title';
+const YEAR_REGEX = /\b(19|20)\d{2}\b/;
 
 // Normalize DOM text into a safe string.
 const safeText = (value) => (value ? value.trim() : '');
+const extractYearFromText = (value) => {
+  const match = safeText(value).match(YEAR_REGEX);
+  return match ? match[0] : '';
+};
 
 // Pull the first UUID out of a URL path.
 const extractIdFromPath = (path) => {
@@ -27,6 +32,21 @@ const titleFromPage = () => {
   return safeText(titleNode?.textContent) || pageTitle;
 };
 
+// Extract year text from the main title page.
+const yearFromPage = () => {
+  const metaCandidates = [
+    document.querySelector('meta[itemprop="datePublished"]'),
+    document.querySelector('meta[property="og:release_date"]'),
+    document.querySelector('meta[name="release_year"]')
+  ];
+  for (const meta of metaCandidates) {
+    const year = extractYearFromText(meta?.content);
+    if (year) return year;
+  }
+
+  return extractYearFromText(document.title);
+};
+
 // Use OG metadata when present to avoid URL inconsistencies.
 const urlFromMeta = () => {
   const ogUrl = document.querySelector('meta[property="og:url"]');
@@ -44,14 +64,15 @@ const resolveUrl = (href) => {
 };
 
 // Shape the content record expected by the rest of the extension.
-const buildContent = ({ id, title, url }) => {
-  if (!id) return null;
+const buildContent = ({ platformItemId, title, url, year }) => {
+  if (!platformItemId) return null;
   return {
-    key: `disney:${id}`,
+    key: `disney:${platformItemId}`,
     provider: 'disney',
-    providerId: id,
+    platformItemId,
     providerType: 'uuid',
     title: title || '',
+    year: year || '',
     fallbackTitle: DEFAULT_TITLE,
     url,
     source: 'page'
@@ -66,13 +87,16 @@ export const isDisneyHost = (hostname = window.location.hostname) =>
 export const getDisneyContent = () => {
   const url = urlFromMeta();
   const resolvedUrl = resolveUrl(url);
-  const contentId = extractIdFromPath(resolvedUrl?.pathname || window.location.pathname);
+  const platformItemId = extractIdFromPath(
+    resolvedUrl?.pathname || window.location.pathname
+  );
 
-  if (!contentId) return null;
+  if (!platformItemId) return null;
 
   return buildContent({
-    id: contentId,
+    platformItemId,
     title: titleFromPage(),
+    year: yearFromPage(),
     url: resolvedUrl?.toString() || url
   });
 };

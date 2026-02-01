@@ -1,264 +1,140 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Environment-based config for Supabase access.
+// Minimal Supabase client setup.
 const supabaseUrl = 'https://avkhnanzljzfhdymsxwa.supabase.co';
-const supabaseAnonKey = 'sb_publishable_mODMOQ1HYxqLHvKuCwv3iw_OCSXKtFt'
+const supabaseAnonKey = 'sb_publishable_mODMOQ1HYxqLHvKuCwv3iw_OCSXKtFt';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-// Use a stateless client because the extension does not need auth sessions.
+const createStorageAdapter = () => {
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    return {
+      getItem: (key) =>
+        new Promise((resolve) => {
+          chrome.storage.local.get([key], (result) => {
+            resolve(result?.[key] ?? null);
+          });
+        }),
+      setItem: (key, value) =>
+        new Promise((resolve) => {
+          chrome.storage.local.set({ [key]: value }, () => resolve());
+        }),
+      removeItem: (key) =>
+        new Promise((resolve) => {
+          chrome.storage.local.remove([key], () => resolve());
+        })
+    };
+  }
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return {
+      getItem: (key) => Promise.resolve(window.localStorage.getItem(key)),
+      setItem: (key, value) => {
+        window.localStorage.setItem(key, value);
+        return Promise.resolve();
+      },
+      removeItem: (key) => {
+        window.localStorage.removeItem(key);
+        return Promise.resolve();
+      }
+    };
+  }
+
+  return undefined;
+};
+
+const storage = createStorageAdapter();
+
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    storage
   }
 });
 
-// Stable local viewer identifier for voting and attribution.
-const viewerKey = 'popcorn_viewer_id';
-// Detect missing schema errors for optional tables.
-const isMissingRelation = (error) =>
-  error?.code === '42P01' ||
-  error?.message?.includes('does not exist') ||
-  error?.message?.includes('relation');
+const contentCatalog =
+  typeof supabase.schema === 'function' ? supabase.schema('content_catalog') : supabase;
 
-// Get or create a pseudo-anonymous id in localStorage.
-export const getViewerId = () => {
-  try {
-    const cached = window.localStorage.getItem(viewerKey);
-    if (cached) return cached;
-    const generated =
-      (window.crypto && window.crypto.randomUUID && window.crypto.randomUUID()) ||
-      `viewer_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    window.localStorage.setItem(viewerKey, generated);
-    return generated;
-  } catch (error) {
-    return `viewer_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  }
+const isMissingFunction = (error) =>
+  error?.code === '42883' ||
+  error?.code === 'PGRST202' ||
+  (error?.message?.includes('function') && error?.message?.includes('does not exist')) ||
+  error?.message?.includes('Could not find the function');
+
+const notImplemented = (name) => {
+  const message = `${name} is not implemented`;
+  // Not implemented: stub for future integration.
+  console.warn(message);
+  throw new Error(message);
 };
 
-// Find or create a thread row for the current content key.
-export const ensureThread = async ({
-  contentKey,
-  contentTitle,
-  contentUrl,
-  contentProvider,
-  contentProviderId,
-  tmdbMetadata
-}) => {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-
-  // Attempt to load an existing thread before inserting.
-  const { data: existing, error } = await supabase
-    .from('threads')
-    .select('*')
-    .eq('content_key', contentKey)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (existing) return existing;
-
-  // Full insert payload for newer schemas.
-  const payload = {
-    content_key: contentKey,
-    content_title: contentTitle,
-    content_url: contentUrl,
-    content_provider: contentProvider,
-    content_provider_id: contentProviderId,
-    tmdb_metadata: tmdbMetadata || null
-  };
-
-  const { data: created, error: insertError } = await supabase
-    .from('threads')
-    .insert(payload)
-    .select('*')
-    .single();
-
-  // Fallback for older schemas missing new columns.
-  const missingColumn =
-    insertError?.code === '42703' ||
-    insertError?.code === 'PGRST204' ||
-    insertError?.message?.includes('column');
-
-  if (missingColumn) {
-    const { data: fallback, error: fallbackError } = await supabase
-      .from('threads')
-      .insert({
-        content_key: contentKey,
-        content_title: contentTitle,
-        content_url: contentUrl
-      })
-      .select('*')
-      .single();
-
-    if (fallbackError) throw fallbackError;
-    return fallback;
-  }
-
-  if (insertError) throw insertError;
-  return created;
-};
-
-// Load the latest comments for a thread.
-export const fetchComments = async (threadId) => {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-
-  const { data, error } = await supabase
-    .from('comments')
-    .select('*')
-    .eq('thread_id', threadId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
-};
-
-// Insert a new comment record.
-export const createComment = async ({ threadId, body, parentId = null }) => {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-
-  // Generate a simple display name based on the local id.
-  const authorId = getViewerId();
-
-  const { data, error } = await supabase
-    .from('comments')
-    .insert({
-      thread_id: threadId,
-      body,
-      parent_id: parentId,
-      author_id: authorId,
-      author_label: `Viewer ${authorId.slice(-4)}`,
-      score: 0
-    })
-    .select('*')
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-// Update the cached score for a comment.
-export const updateCommentScore = async ({ commentId, score }) => {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-
-  const { data, error } = await supabase
-    .from('comments')
-    .update({ score })
-    .eq('id', commentId)
-    .select('id, score')
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-// Resolve the catalog entry mapped to a provider id.
-export const fetchContentCatalog = async ({ provider, providerId }) => {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-
-  const { data, error } = await supabase
-    .from('content_mappings')
-    .select('id, content_catalog:content_catalog_id(*)')
-    .eq('provider', provider)
-    .eq('provider_id', providerId)
-    .maybeSingle();
-
-  if (error) {
-    if (isMissingRelation(error)) return null;
-    throw error;
-  }
-
-  return data?.content_catalog || null;
-};
-
-// Insert a catalog entry based on TMDB data, or return an existing one.
-export const upsertContentCatalogFromTmdb = async (tmdbMetadata) => {
-  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-  if (!tmdbMetadata?.id || !tmdbMetadata?.mediaType) {
-    throw new Error('TMDB metadata is missing required fields.');
-  }
-
-  const { data: existing, error: fetchError } = await supabase
-    .from('content_catalog')
-    .select('*')
-    .eq('tmdb_id', tmdbMetadata.id)
-    .eq('tmdb_type', tmdbMetadata.mediaType)
-    .maybeSingle();
-
-  if (fetchError) {
-    if (isMissingRelation(fetchError)) return null;
-    throw fetchError;
-  }
-
-  if (existing) return existing;
-
-  // Shape the TMDB metadata into catalog columns.
-  const payload = {
-    tmdb_id: tmdbMetadata.id,
-    tmdb_type: tmdbMetadata.mediaType,
-    title: tmdbMetadata.title || tmdbMetadata.originalTitle || 'Untitled',
-    year: tmdbMetadata.year || null,
-    genres: tmdbMetadata.genres || [],
-    overview: tmdbMetadata.overview || null,
-    poster_url: tmdbMetadata.posterPath || null,
-    rating: tmdbMetadata.rating,
-    vote_count: tmdbMetadata.voteCount,
-    tmdb_metadata: tmdbMetadata
-  };
-
-  const { data, error } = await supabase
-    .from('content_catalog')
-    .insert(payload)
-    .select('*')
-    .single();
-
-  // Unique constraint safety net for concurrent inserts.
-  if (error?.code === '23505') {
-    const { data: fallback, error: fallbackError } = await supabase
-      .from('content_catalog')
-      .select('*')
-      .eq('tmdb_id', tmdbMetadata.id)
-      .eq('tmdb_type', tmdbMetadata.mediaType)
-      .maybeSingle();
-
-    if (fallbackError) throw fallbackError;
-    return fallback;
-  }
-
-  if (error) throw error;
-  return data;
-};
-
-// Upsert the mapping between provider id and catalog entry.
-export const confirmContentMapping = async ({
-  provider,
-  providerId,
-  contentCatalogId,
-  viewerId,
-  tmdbMetadata
+// Minimal RPC wrapper for external identifier touch.
+export const touchExternalIdentifier = async ({
+  platform,
+  externalId,
+  url,
+  title,
+  yearPublished
 }) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
   const payload = {
-    provider,
-    provider_id: providerId,
-    content_catalog_id: contentCatalogId,
-    confirmed_by: viewerId,
-    confirmed_at: new Date().toISOString(),
-    tmdb_snapshot: tmdbMetadata || null
+    p_platform: platform || null,
+    p_external_id: externalId || null,
+    p_url: url || null,
+    p_title: title || null,
+    p_year_published: yearPublished || null
   };
 
-  const { data, error } = await supabase
-    .from('content_mappings')
-    .upsert(payload, { onConflict: 'provider,provider_id' })
-    .select('*')
-    .single();
+  const clients = [contentCatalog, supabase];
+  let missingError = null;
 
-  if (error) {
-    if (isMissingRelation(error)) return null;
-    throw error;
+  for (const client of clients) {
+    try {
+      const { data, error } = await client.rpc('touch_external_identifier', payload);
+      if (error) throw error;
+      return data ?? null;
+    } catch (error) {
+      if (isMissingFunction(error)) {
+        missingError = error;
+        continue;
+      }
+      throw error;
+    }
   }
 
-  return data;
+  if (missingError) throw missingError;
+  return null;
 };
+
+export const insertExternalIdentifier = async (payload) => {
+  // Not implemented: temp shim that only runs the RPC.
+  return touchExternalIdentifier({
+    platform: payload?.platform,
+    externalId: payload?.externalIdentifier || payload?.externalId,
+    url: payload?.url,
+    title: payload?.title,
+    yearPublished: payload?.yearPublished
+  });
+};
+
+// ---- Temporary stubs (not implemented) ----
+export const ensureThread = async () => notImplemented('ensureThread');
+export const fetchComments = async () => notImplemented('fetchComments');
+export const createComment = async () => notImplemented('createComment');
+export const updateCommentScore = async () => notImplemented('updateCommentScore');
+export const fetchContentCatalog = async () => notImplemented('fetchContentCatalog');
+export const upsertContentCatalogFromTmdb = async () =>
+  notImplemented('upsertContentCatalogFromTmdb');
+export const confirmContentMapping = async () => notImplemented('confirmContentMapping');
+export const upsertContentMetadata = async () => notImplemented('upsertContentMetadata');
+export const fetchContentMetadata = async () => notImplemented('fetchContentMetadata');
+export const fetchContentExternalId = async () => notImplemented('fetchContentExternalId');
+export const insertContentExternalId = async () => notImplemented('insertContentExternalId');
+export const upsertContentExternalIdLink = async () =>
+  notImplemented('upsertContentExternalIdLink');
+export const fetchContentMetadataTmdbId = async () =>
+  notImplemented('fetchContentMetadataTmdbId');
+export const getViewerId = () => notImplemented('getViewerId');

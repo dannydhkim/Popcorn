@@ -3,3 +3,16 @@ Ratings on the thing
 Ratings from imdb/rotten tomatoes/metacritic added
 upvote/downvote
 Community watch parties
+
+"scrolling comments" -- the comments follow along with the timestamp you are at.
+
+The more weight there is, the more visible at the top it is (paid or likes)
+like a twitch chat or youtube replay chat.
+
+Make custom color palettes for design and feel -- "Base", "Hype mode", "Deep Lore mode"
+
+Cornelius changes mood/expressions
+
+Cornelius watches with you and reacts like the comments
+
+You can just react to a moment (with a timestamp) no need to write a whole comment.

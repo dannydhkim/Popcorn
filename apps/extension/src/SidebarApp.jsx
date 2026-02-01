@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import CommentBox from './commentBox';
-import { getProviderLabel } from './contentSources';
+import { getProviderLabel, markExternalIdResolved } from './contentSources';
 import {
   confirmContentMapping,
   createComment,
@@ -12,9 +12,15 @@ import {
   isSupabaseConfigured,
   supabase,
   updateCommentScore,
-  upsertContentCatalogFromTmdb
+  upsertContentExternalIdLink,
+  upsertContentCatalogFromTmdb,
+  upsertContentMetadata
 } from './supabaseClient';
-import { isTmdbConfigured } from './tmdb';
+import {
+  fetchTmdbMetadataById,
+  isTmdbConfigured,
+  searchTmdbCandidates
+} from './tmdb';
 
 const PLAY_BUTTON_SELECTORS = [
   'a.primary-button.playLink',
@@ -24,63 +30,103 @@ const PLAY_BUTTON_SELECTORS = [
   '[data-uia="play-button"]'
 ];
 
-const findPlayButton = () => {
+let corneliusPortalCounter = 0;
+
+const findPlayButtons = () => {
+  const matches = new Set();
   for (const selector of PLAY_BUTTON_SELECTORS) {
-    const match = document.querySelector(selector);
-    if (match) return match;
+    document.querySelectorAll(selector).forEach((node) => {
+      if (node) matches.add(node);
+    });
   }
-  return null;
+  return Array.from(matches);
 };
 
-const CorneliusToggle = ({ isOpen, onToggle }) => {
-  const [portalTarget, setPortalTarget] = useState(null);
+const CorneliusToggle = ({ isOpen, onToggle, isVideoPlayer }) => {
+  const [portalTargets, setPortalTargets] = useState([]);
 
   useEffect(() => {
+    if (isVideoPlayer) {
+      setPortalTargets([]);
+      document.querySelectorAll('.cornelius-portal').forEach((node) => {
+        node.remove();
+      });
+      return undefined;
+    }
     if (!document.body) return undefined;
     let mounted = true;
-    let currentPortal = null;
+    let currentPortals = [];
 
-    const ensurePortal = () => {
-      const target = findPlayButton();
-      if (!target?.parentElement) return;
+    const ensurePortals = () => {
+      const targets = findPlayButtons().filter((target) => target?.parentElement);
+      const portals = targets.map((target) => {
+        let portal = target.nextElementSibling;
+        if (!portal || !portal.classList?.contains('cornelius-portal')) {
+          portal = document.createElement('div');
+          portal.className = 'cornelius-portal';
+          target.parentElement.insertBefore(portal, target.nextSibling);
+        }
+        if (!portal.dataset.popcornPortalId) {
+          portal.dataset.popcornPortalId = String(++corneliusPortalCounter);
+        }
+        return portal;
+      });
+      const portalSet = new Set(portals);
+      document.querySelectorAll('.cornelius-portal').forEach((node) => {
+        if (!portalSet.has(node)) {
+          node.remove();
+        }
+      });
 
-      let portal = target.parentElement.querySelector('.cornelius-portal');
-      if (!portal) {
-        portal = document.createElement('div');
-        portal.className = 'cornelius-portal';
-        target.parentElement.insertBefore(portal, target.nextSibling);
-      }
-
-      if (mounted && portal !== currentPortal) {
-        currentPortal = portal;
-        setPortalTarget(portal);
+      if (!mounted) return;
+      const same =
+        portals.length === currentPortals.length &&
+        portals.every((portal, index) => portal === currentPortals[index]);
+      if (!same) {
+        currentPortals = portals;
+        setPortalTargets(portals);
       }
     };
 
-    const observer = new MutationObserver(ensurePortal);
+    const observer = new MutationObserver(ensurePortals);
     observer.observe(document.body, { childList: true, subtree: true });
-    ensurePortal();
+    ensurePortals();
 
     return () => {
       mounted = false;
       observer.disconnect();
     };
-  }, []);
+  }, [isVideoPlayer]);
 
-  if (!portalTarget) return null;
+  if (!portalTargets.length || isVideoPlayer) return null;
   const iconUrl = chrome.runtime.getURL('cornelius.svg');
 
-  return createPortal(
+  return portalTargets.map((portal) =>
+    createPortal(
+      <button
+        className={`popcorn-cornelius-button${isOpen ? ' is-open' : ''}`}
+        type="button"
+        onClick={onToggle}
+        aria-pressed={isOpen}
+        aria-label="Toggle Popcorn sidebar"
+      >
+        <img className="popcorn-cornelius-icon" src={iconUrl} alt="Popcorn" />
+      </button>,
+      portal,
+      portal.dataset.popcornPortalId
+    )
+  );
+};
+
+const VideoEdgeToggle = ({ isOpen, onToggle, isVideoPlayer }) => {
+  if (!isVideoPlayer || isOpen) return null;
+  return (
     <button
-      className={`popcorn-cornelius-button${isOpen ? ' is-open' : ''}`}
+      className="popcorn-edge-toggle"
       type="button"
       onClick={onToggle}
-      aria-pressed={isOpen}
-      aria-label="Toggle Popcorn sidebar"
-    >
-      <img className="popcorn-cornelius-icon" src={iconUrl} alt="Popcorn" />
-    </button>,
-    portalTarget
+      aria-label="Open Popcorn sidebar"
+    />
   );
 };
 
@@ -100,7 +146,7 @@ const timeAgo = (timestamp) => {
 };
 
 // Stateless row renderer for a single comment.
-const CommentRow = ({ comment, index, onVote }) => {
+const CommentRow = ({ comment, index, onVote, canVote }) => {
   const score = Number.isFinite(comment.score) ? comment.score : 0;
 
   return (
@@ -113,6 +159,8 @@ const CommentRow = ({ comment, index, onVote }) => {
           className="popcorn-vote-button"
           type="button"
           onClick={() => onVote(comment, score + 1)}
+          disabled={!canVote}
+          aria-disabled={!canVote}
           aria-label="Upvote"
         >
           ^
@@ -122,6 +170,8 @@ const CommentRow = ({ comment, index, onVote }) => {
           className="popcorn-vote-button"
           type="button"
           onClick={() => onVote(comment, score - 1)}
+          disabled={!canVote}
+          aria-disabled={!canVote}
           aria-label="Downvote"
         >
           v
@@ -139,8 +189,249 @@ const CommentRow = ({ comment, index, onVote }) => {
   );
 };
 
+const AuthPage = ({
+  session,
+  status,
+  mode,
+  email,
+  password,
+  isBusy,
+  error,
+  notice,
+  disabled,
+  onBack,
+  onEmailChange,
+  onPasswordChange,
+  onModeToggle,
+  onSubmit,
+  onSignOut
+}) => {
+  const heading = session
+    ? 'Account'
+    : mode === 'signIn'
+    ? 'Sign in'
+    : 'Create account';
+  const subtitle = session
+    ? 'Account access'
+    : mode === 'signIn'
+    ? 'Welcome back'
+    : 'Join the crowd';
+
+  return (
+    <div className="popcorn-auth-page">
+      <header className="popcorn-auth-header">
+        <button className="popcorn-ghost popcorn-back" type="button" onClick={onBack}>
+          Back
+        </button>
+        <div>
+          <div className="popcorn-brand">Popcorn!</div>
+          <div className="popcorn-tagline">{subtitle}</div>
+        </div>
+      </header>
+      <section className="popcorn-auth">
+        <div className="popcorn-auth-title">{heading}</div>
+        {status === 'loading' ? (
+          <div className="popcorn-muted">Checking session...</div>
+        ) : session ? (
+          <div className="popcorn-auth-card">
+            <div className="popcorn-auth-user">
+              Signed in as{' '}
+              <span className="popcorn-auth-email">
+                {session.user?.email || 'Viewer'}
+              </span>
+            </div>
+            <button
+              className="popcorn-ghost"
+              type="button"
+              onClick={onSignOut}
+              disabled={isBusy}
+            >
+              {isBusy ? 'Signing out...' : 'Sign out'}
+            </button>
+          </div>
+        ) : (
+          <form className="popcorn-auth-form" onSubmit={onSubmit}>
+            <label className="popcorn-label" htmlFor="popcorn-auth-email">
+              Email
+            </label>
+            <input
+              className="popcorn-input"
+              id="popcorn-auth-email"
+              type="email"
+              value={email}
+              onChange={onEmailChange}
+              disabled={disabled || isBusy}
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
+            <label className="popcorn-label" htmlFor="popcorn-auth-password">
+              Password
+            </label>
+            <input
+              className="popcorn-input"
+              id="popcorn-auth-password"
+              type="password"
+              value={password}
+              onChange={onPasswordChange}
+              disabled={disabled || isBusy}
+              placeholder="Password"
+              autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
+            />
+            <div className="popcorn-auth-actions">
+              <button
+                className="popcorn-submit"
+                type="submit"
+                disabled={disabled || isBusy || !email || !password}
+              >
+                {isBusy
+                  ? mode === 'signIn'
+                    ? 'Signing in...'
+                    : 'Creating...'
+                  : mode === 'signIn'
+                  ? 'Sign in'
+                  : 'Create account'}
+              </button>
+              <button
+                className="popcorn-auth-switch"
+                type="button"
+                onClick={onModeToggle}
+                disabled={disabled || isBusy}
+              >
+                {mode === 'signIn'
+                  ? 'Need an account?'
+                  : 'Already have an account?'}
+              </button>
+            </div>
+          </form>
+        )}
+        {error ? <div className="popcorn-error">{error}</div> : null}
+        {notice ? <div className="popcorn-callout">{notice}</div> : null}
+        {!session && disabled ? (
+          <div className="popcorn-callout">Sign-in unavailable.</div>
+        ) : null}
+        {!session && disabled && import.meta?.env?.DEV ? (
+          <div className="popcorn-callout">
+            Connect Supabase to enable sign-in.
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+};
+
+const AccountPage = ({
+  session,
+  status,
+  profile,
+  comments,
+  commentsStatus,
+  commentsError,
+  isBusy,
+  disabled,
+  onBack,
+  onSignOut
+}) => {
+  const displayName = profile?.displayName || 'Viewer';
+  const avatarUrl = profile?.avatarUrl || '';
+  const bio = profile?.bio || '';
+  const email = profile?.email || '';
+  const commentCount =
+    commentsStatus === 'ready' ? String(comments.length) : '...';
+
+  return (
+    <div className="popcorn-auth-page popcorn-account-page">
+      <header className="popcorn-auth-header">
+        <button className="popcorn-ghost popcorn-back" type="button" onClick={onBack}>
+          Back
+        </button>
+        <div>
+          <div className="popcorn-brand">Popcorn!</div>
+          <div className="popcorn-tagline">Account</div>
+        </div>
+      </header>
+      <section className="popcorn-account-profile">
+        <div
+          className="popcorn-avatar"
+          style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}
+          aria-hidden="true"
+        >
+          {!avatarUrl ? displayName.slice(0, 1).toUpperCase() : null}
+        </div>
+        <div className="popcorn-account-details">
+          <div className="popcorn-account-name">{displayName}</div>
+          {email ? <div className="popcorn-muted">{email}</div> : null}
+          {bio ? (
+            <div className="popcorn-account-bio">{bio}</div>
+          ) : (
+            <div className="popcorn-muted">Add a bio in your profile metadata.</div>
+          )}
+        </div>
+        <button
+          className="popcorn-ghost"
+          type="button"
+          onClick={onSignOut}
+          disabled={disabled || isBusy || status === 'loading' || !session}
+        >
+          {isBusy ? 'Signing out...' : 'Sign out'}
+        </button>
+      </section>
+      <section className="popcorn-account-grid">
+        <div className="popcorn-account-card">
+          <div className="popcorn-account-label">Posts</div>
+          <div className="popcorn-account-value">0</div>
+          <div className="popcorn-muted">Coming soon</div>
+        </div>
+        <div className="popcorn-account-card">
+          <div className="popcorn-account-label">Comments</div>
+          <div className="popcorn-account-value">{commentCount}</div>
+          <div className="popcorn-muted">Recent activity</div>
+        </div>
+        <div className="popcorn-account-card">
+          <div className="popcorn-account-label">Saved</div>
+          <div className="popcorn-account-value">0</div>
+          <div className="popcorn-muted">Coming soon</div>
+        </div>
+        <div className="popcorn-account-card">
+          <div className="popcorn-account-label">Lists</div>
+          <div className="popcorn-account-value">0</div>
+          <div className="popcorn-muted">Coming soon</div>
+        </div>
+      </section>
+      <section className="popcorn-account-section">
+        <div className="popcorn-section-title">Your comments</div>
+        {commentsStatus === 'loading' ? (
+          <div className="popcorn-muted">Loading your comments...</div>
+        ) : null}
+        {commentsStatus === 'error' ? (
+          <div className="popcorn-error">{commentsError}</div>
+        ) : null}
+        {commentsStatus === 'ready' && comments.length === 0 ? (
+          <div className="popcorn-muted">No comments yet.</div>
+        ) : null}
+        {comments.map((comment) => (
+          <div className="popcorn-account-comment" key={comment.id}>
+            <div className="popcorn-account-comment-meta">
+              {timeAgo(comment.created_at)}
+            </div>
+            <div className="popcorn-account-comment-body">{comment.body}</div>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+};
+
 // Main sidebar UI driven by current content and Supabase data.
-const SidebarApp = ({ content, isOpen, onToggle }) => {
+const SidebarApp = ({ content, isOpen, onToggle, isVideoPlayer }) => {
+  const [authSession, setAuthSession] = useState(null);
+  const [authStatus, setAuthStatus] = useState('loading');
+  const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
+  const [authMode, setAuthMode] = useState('signIn');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [activeView, setActiveView] = useState('main');
   // Thread + comments.
   const [thread, setThread] = useState(null);
   const [comments, setComments] = useState([]);
@@ -149,12 +440,23 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
   // Catalog metadata (content_catalog + mapping) state.
   const [catalogEntry, setCatalogEntry] = useState(null);
   const [catalogStatus, setCatalogStatus] = useState('idle');
-  const [catalogError, setCatalogError] = useState('');
-  const [catalogDismissed, setCatalogDismissed] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isSavingMatch, setIsSavingMatch] = useState(false);
+  const [accountComments, setAccountComments] = useState([]);
+  const [accountCommentsStatus, setAccountCommentsStatus] = useState('idle');
+  const [accountCommentsError, setAccountCommentsError] = useState('');
+  const [isFixOpen, setIsFixOpen] = useState(false);
+  const [fixQuery, setFixQuery] = useState('');
+  const [fixCandidates, setFixCandidates] = useState([]);
+  const [fixStatus, setFixStatus] = useState('idle');
+  const [fixError, setFixError] = useState('');
+  const [selectedFixKey, setSelectedFixKey] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+  const [mismatchDismissed, setMismatchDismissed] = useState(false);
+  const fixRequestRef = useRef(0);
 
   // Content readiness and labels for the header.
   const isReady = Boolean(content && content.key);
+  const catalogPlatformItemId = content?.platformItemId || '';
   const providerLabel = content?.provider
     ? getProviderLabel(content.provider)
     : 'Streaming';
@@ -180,8 +482,14 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
   ]
     .filter(Boolean)
     .join(' | ');
-  const tmdbLink =
-    catalogEntry?.tmdb_metadata?.tmdbUrl || content?.tmdb?.tmdbUrl || '';
+  const tmdbMatchSummary = content?.tmdb
+    ? [
+        content.tmdb.title,
+        content.tmdb.year ? `(${content.tmdb.year})` : ''
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : '';
 
   // Helper message for missing Supabase config.
   const connectionMessage = useMemo(() => {
@@ -195,28 +503,112 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     return 'Add VITE_TMDB_API_KEY to .env for title + genre metadata.';
   }, []);
 
+  const isAuthenticated = Boolean(authSession?.user);
+  const profile = {
+    displayName:
+      authSession?.user?.user_metadata?.display_name ||
+      authSession?.user?.user_metadata?.full_name ||
+      authSession?.user?.email ||
+      '',
+    email: authSession?.user?.email || '',
+    avatarUrl:
+      authSession?.user?.user_metadata?.avatar_url ||
+      authSession?.user?.user_metadata?.avatar ||
+      authSession?.user?.user_metadata?.picture ||
+      '',
+    bio:
+      authSession?.user?.user_metadata?.bio ||
+      authSession?.user?.user_metadata?.about ||
+      ''
+  };
+  const authName =
+    authSession?.user?.user_metadata?.display_name ||
+    authSession?.user?.user_metadata?.full_name ||
+    authSession?.user?.email ||
+    '';
+  const greetingName = isAuthenticated
+    ? authName || 'Viewer'
+    : authStatus === 'loading'
+    ? '...'
+    : 'Guest';
+
+  useEffect(() => {
+    if (isAuthenticated && activeView === 'auth') {
+      setActiveView('main');
+    }
+  }, [isAuthenticated, activeView]);
+
+  useEffect(() => {
+    setMismatchDismissed(false);
+    setIsFixOpen(false);
+    setFixQuery('');
+    setFixCandidates([]);
+    setFixStatus('idle');
+    setFixError('');
+    setSelectedFixKey('');
+  }, [content?.key]);
+
+  useEffect(() => {
+    if (!isAuthenticated && activeView === 'account') {
+      setActiveView('main');
+    }
+  }, [isAuthenticated, activeView]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (!isSupabaseConfigured) {
+      setAuthSession(null);
+      setAuthStatus('idle');
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setAuthStatus('loading');
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isActive) return;
+        setAuthSession(data?.session || null);
+        setAuthStatus('ready');
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setAuthStatus('ready');
+      });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isActive) return;
+      setAuthSession(session || null);
+      setAuthStatus('ready');
+    });
+
+    return () => {
+      isActive = false;
+      data?.subscription?.unsubscribe();
+    };
+  }, [isSupabaseConfigured]);
+
   // Load catalog metadata for this provider id.
   useEffect(() => {
     let isActive = true;
 
-    if (!isReady || !isSupabaseConfigured || !content?.providerId) {
+    if (!isReady || !isSupabaseConfigured || !catalogPlatformItemId) {
       setCatalogEntry(null);
       setCatalogStatus('idle');
-      setCatalogError('');
-      setCatalogDismissed(false);
       return () => {
         isActive = false;
       };
     }
 
     setCatalogStatus('loading');
-    setCatalogError('');
     setCatalogEntry(null);
-    setCatalogDismissed(false);
 
     fetchContentCatalog({
       provider: content.provider,
-      providerId: content.providerId
+      platformItemId: catalogPlatformItemId
     })
       .then((entry) => {
         if (!isActive) return;
@@ -230,13 +622,12 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
       .catch(() => {
         if (!isActive) return;
         setCatalogStatus('error');
-        setCatalogError('Unable to load catalog metadata.');
       });
 
     return () => {
       isActive = false;
     };
-  }, [content?.provider, content?.providerId, isReady, isSupabaseConfigured]);
+  }, [content?.provider, catalogPlatformItemId, isReady, isSupabaseConfigured]);
 
   // Load thread and comments whenever the content changes.
   useEffect(() => {
@@ -267,7 +658,7 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
             content.fallbackTitle,
           contentUrl: content.url,
           contentProvider: content.provider,
-          contentProviderId: content.providerId,
+          contentPlatformItemId: catalogPlatformItemId,
           tmdbMetadata: catalogEntry?.tmdb_metadata || content.tmdb
         });
         if (!isActive) return;
@@ -335,59 +726,326 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     };
   }, [thread?.id, isSupabaseConfigured]);
 
-  // Show the TMDB confirmation UI only when catalog data is missing.
-  const candidateAvailable =
-    catalogStatus === 'missing' && Boolean(content?.tmdb) && !catalogDismissed;
+  useEffect(() => {
+    let isActive = true;
 
-  // Persist the chosen TMDB match into the catalog + mapping tables.
-  const handleConfirmCandidate = async () => {
-    if (!content?.tmdb || !content?.provider || !content?.providerId) return;
+    if (
+      !isAuthenticated ||
+      !isSupabaseConfigured ||
+      activeView !== 'account' ||
+      !authSession?.user?.id
+    ) {
+      setAccountComments([]);
+      setAccountCommentsStatus('idle');
+      setAccountCommentsError('');
+      return () => {
+        isActive = false;
+      };
+    }
 
-    setIsConfirming(true);
-    setCatalogError('');
+    setAccountCommentsStatus('loading');
+    setAccountCommentsError('');
+
+    supabase
+      .from('comments')
+      .select('id, body, created_at')
+      .eq('author_id', authSession.user.id)
+      .order('created_at', { ascending: false })
+      .limit(8)
+      .then(({ data, error: commentError }) => {
+        if (!isActive) return;
+        if (commentError) throw commentError;
+        setAccountComments(data || []);
+        setAccountCommentsStatus('ready');
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setAccountCommentsStatus('error');
+        setAccountCommentsError('Unable to load your comments.');
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [activeView, authSession?.user?.id, isAuthenticated, isSupabaseConfigured]);
+
+  const matchConfidence = catalogEntry?.id
+    ? 'high'
+    : content?.tmdb
+    ? 'medium'
+    : 'low';
+
+  const fixLinkTone =
+    matchConfidence === 'high'
+      ? 'is-quiet'
+      : matchConfidence === 'medium'
+      ? 'is-medium'
+      : 'is-strong';
+
+  const currentCandidate = useMemo(() => {
+    if (catalogEntry?.tmdb_id && catalogEntry?.tmdb_type) {
+      return {
+        key: `${catalogEntry.tmdb_type}:${catalogEntry.tmdb_id}`,
+        tmdbId: catalogEntry.tmdb_id,
+        mediaType: catalogEntry.tmdb_type,
+        title: catalogEntry.title || 'Untitled',
+        year: catalogEntry.year || '',
+        posterUrl:
+          catalogEntry.poster_url || catalogEntry.tmdb_metadata?.posterPath || '',
+        network: catalogEntry.tmdb_metadata?.network || '',
+        studio: catalogEntry.tmdb_metadata?.studio || '',
+        isCurrent: true,
+        tmdbMetadata: catalogEntry.tmdb_metadata || null
+      };
+    }
+
+    if (content?.tmdb?.id && content?.tmdb?.mediaType) {
+      return {
+        key: `${content.tmdb.mediaType}:${content.tmdb.id}`,
+        tmdbId: content.tmdb.id,
+        mediaType: content.tmdb.mediaType,
+        title: content.tmdb.title || content.tmdb.originalTitle || 'Untitled',
+        year: content.tmdb.year || '',
+        posterUrl: content.tmdb.posterPath || '',
+        network: content.tmdb.network || '',
+        studio: content.tmdb.studio || '',
+        isCurrent: false,
+        isSuggested: true,
+        tmdbMetadata: content.tmdb || null
+      };
+    }
+
+    return null;
+  }, [catalogEntry, content?.tmdb]);
+
+  const mergeCandidates = (primary, list) => {
+    const merged = new Map();
+    if (primary) merged.set(primary.key, primary);
+    list.forEach((candidate) => {
+      if (!candidate?.key) return;
+      if (!merged.has(candidate.key)) {
+        merged.set(candidate.key, candidate);
+        return;
+      }
+      const existing = merged.get(candidate.key);
+      merged.set(candidate.key, {
+        ...candidate,
+        ...existing,
+        isCurrent: existing.isCurrent || candidate.isCurrent,
+        isSuggested: existing.isSuggested || candidate.isSuggested
+      });
+    });
+    return Array.from(merged.values());
+  };
+
+  const loadFixCandidates = async (query) => {
+    const trimmed = (query || '').trim();
+    if (!trimmed) {
+      setFixCandidates(currentCandidate ? [currentCandidate] : []);
+      setFixStatus('ready');
+      return;
+    }
+
+    if (!isTmdbConfigured) {
+      setFixCandidates(currentCandidate ? [currentCandidate] : []);
+      setFixStatus('ready');
+      setFixError('Add VITE_TMDB_API_KEY to search TMDB.');
+      return;
+    }
+
+    const requestId = ++fixRequestRef.current;
+    setFixStatus('loading');
+    setFixError('');
 
     try {
-      const catalog = await upsertContentCatalogFromTmdb(content.tmdb);
+      const results = await searchTmdbCandidates({
+        query: trimmed,
+        year: displayYear
+      });
+      if (requestId !== fixRequestRef.current) return;
+      const mapped = (results || []).map((candidate) => ({
+        key: `${candidate.mediaType}:${candidate.id}`,
+        tmdbId: candidate.id,
+        mediaType: candidate.mediaType,
+        title: candidate.title,
+        year: candidate.year || '',
+        posterUrl: candidate.posterUrl || '',
+        network: candidate.network || '',
+        studio: candidate.studio || '',
+        isCurrent: false,
+        tmdbMetadata: null
+      }));
+
+      const combined = mergeCandidates(currentCandidate, mapped).sort((a, b) => {
+        if (a.isCurrent && !b.isCurrent) return -1;
+        if (!a.isCurrent && b.isCurrent) return 1;
+        return 0;
+      });
+      const trimmed = combined.slice(0, 7);
+
+      setFixCandidates(trimmed);
+      setFixStatus('ready');
+      setSelectedFixKey((prev) => {
+        if (prev && trimmed.some((candidate) => candidate.key === prev)) return prev;
+        return trimmed[0]?.key || '';
+      });
+    } catch (err) {
+      if (requestId !== fixRequestRef.current) return;
+      setFixStatus('error');
+      setFixError('Unable to load candidates.');
+      setFixCandidates(currentCandidate ? [currentCandidate] : []);
+    }
+  };
+
+  useEffect(() => {
+    if (!isFixOpen) return undefined;
+    const query = fixQuery.trim() || displayTitle;
+    const delay = fixQuery.trim() ? 250 : 0;
+    const timer = window.setTimeout(() => {
+      loadFixCandidates(query);
+    }, delay);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isFixOpen, fixQuery, displayTitle, displayYear, currentCandidate]);
+
+  useEffect(() => {
+    if (!toastMessage) return undefined;
+    const timer = window.setTimeout(() => {
+      setToastMessage('');
+    }, 2400);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [toastMessage]);
+
+  const openFixModal = () => {
+    if (!isReady) return;
+    setIsFixOpen(true);
+    setFixError('');
+    setFixStatus('loading');
+    setFixQuery('');
+    setFixCandidates(currentCandidate ? [currentCandidate] : []);
+    setSelectedFixKey(currentCandidate?.key || '');
+  };
+
+  const closeFixModal = () => {
+    setIsFixOpen(false);
+  };
+
+  const handleSaveMatch = async () => {
+    const candidate = fixCandidates.find(
+      (item) => item.key === selectedFixKey
+    );
+    if (!candidate || !content?.provider || !catalogPlatformItemId) return;
+    if (!isSupabaseConfigured) {
+      setFixError('Connect Supabase to save matches.');
+      return;
+    }
+
+    setIsSavingMatch(true);
+    setFixError('');
+
+    try {
+      let tmdbMetadata = candidate.tmdbMetadata || null;
+      if (!tmdbMetadata && !isTmdbConfigured) {
+        setFixError('Add VITE_TMDB_API_KEY to load TMDB details.');
+        return;
+      }
+      if (!tmdbMetadata) {
+        tmdbMetadata = await fetchTmdbMetadataById(
+          candidate.mediaType,
+          candidate.tmdbId
+        );
+      }
+      if (!tmdbMetadata) {
+        setFixError('Unable to load TMDB details.');
+        return;
+      }
+
+      const catalog = await upsertContentCatalogFromTmdb(tmdbMetadata);
       if (!catalog) {
-        setCatalogError('Catalog tables are missing. Apply supabase/schema.sql.');
+        setFixError('Catalog tables are missing. Apply supabase/schema.sql.');
         return;
       }
 
       const mapping = await confirmContentMapping({
         provider: content.provider,
-        providerId: content.providerId,
+        platformItemId: catalogPlatformItemId,
         contentCatalogId: catalog.id,
-        viewerId: getViewerId(),
-        tmdbMetadata: content.tmdb
+        viewerId: authSession?.user?.id || getViewerId(),
+        tmdbMetadata
       });
 
       if (!mapping) {
-        setCatalogError('Catalog tables are missing. Apply supabase/schema.sql.');
+        setFixError('Catalog tables are missing. Apply supabase/schema.sql.');
         return;
       }
 
+      const metadataRecord = await upsertContentMetadata({
+        url: content.url,
+        platform: content.provider,
+        platformItemId: catalogPlatformItemId,
+        title: content.title,
+        yearReleased: content.year,
+        tmdbId: tmdbMetadata.id,
+        tmdbMetadata,
+        contentType: tmdbMetadata.mediaType,
+        imdbId: tmdbMetadata.imdbId,
+        wikidataId: tmdbMetadata.wikidataId
+      });
+
+      if (!metadataRecord?.id) {
+        setFixError('Content metadata table is missing. Apply supabase/schema.sql.');
+        return;
+      }
+
+      const externalLink = await upsertContentExternalIdLink({
+        source: content.provider,
+        externalId: catalogPlatformItemId,
+        contentId: metadataRecord.id,
+        url: content.url
+      });
+
+      if (!externalLink) {
+        setFixError(
+          'Content external ids table is missing. Apply supabase/schema.sql.'
+        );
+        return;
+      }
+
+      markExternalIdResolved({
+        source: content.provider,
+        externalId: catalogPlatformItemId,
+        contentId: metadataRecord.id
+      });
+
       setCatalogEntry(catalog);
       setCatalogStatus('ready');
-      setCatalogDismissed(true);
+      setIsFixOpen(false);
+      setMismatchDismissed(true);
+      setToastMessage('Match updated.');
     } catch (err) {
-      setCatalogError('Unable to save catalog metadata.');
+      setFixError('Unable to save match.');
     } finally {
-      setIsConfirming(false);
+      setIsSavingMatch(false);
     }
   };
 
   // Create a new comment and prepend it in the UI.
   const handleSubmit = async (text) => {
-    if (!thread) return;
+    if (!thread || !isAuthenticated) return;
     const nextComment = await createComment({
       threadId: thread.id,
-      body: text
+      body: text,
+      author: authSession?.user || null
     });
     setComments((prev) => [nextComment, ...prev]);
   };
 
   // Optimistically update the vote UI and roll back on error.
   const handleVote = async (comment, nextScore) => {
+    if (!isAuthenticated) return;
     const previousScore = Number.isFinite(comment.score) ? comment.score : 0;
 
     setComments((prev) =>
@@ -410,137 +1068,357 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
     }
   };
 
+  const handleAuthEmailChange = (event) => {
+    setAuthEmail(event.target.value);
+    if (authError) setAuthError('');
+    if (authNotice) setAuthNotice('');
+  };
+
+  const handleAuthPasswordChange = (event) => {
+    setAuthPassword(event.target.value);
+    if (authError) setAuthError('');
+    if (authNotice) setAuthNotice('');
+  };
+
+  const handleAuthModeToggle = () => {
+    setAuthMode((prev) => (prev === 'signIn' ? 'signUp' : 'signIn'));
+    setAuthError('');
+    setAuthNotice('');
+  };
+
+  const handleAuthSubmit = async (event) => {
+    event.preventDefault();
+    if (!authEmail || !authPassword || !isSupabaseConfigured) return;
+
+    setAuthBusy(true);
+    setAuthError('');
+    setAuthNotice('');
+
+    try {
+      const response =
+        authMode === 'signIn'
+          ? await supabase.auth.signInWithPassword({
+              email: authEmail,
+              password: authPassword
+            })
+          : await supabase.auth.signUp({
+              email: authEmail,
+              password: authPassword
+            });
+
+      if (response.error) throw response.error;
+
+      if (authMode === 'signUp' && !response.data?.session) {
+        setAuthNotice('Check your email to confirm your account.');
+      } else {
+        setAuthNotice('Signed in successfully.');
+      }
+
+      setAuthPassword('');
+    } catch (err) {
+      setAuthError(err?.message || 'Unable to authenticate.');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setAuthBusy(true);
+    setAuthError('');
+    setAuthNotice('');
+
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
+    } catch (err) {
+      setAuthError(err?.message || 'Unable to sign out.');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const openAuthView = () => {
+    setActiveView('auth');
+  };
+
+  const openAccountView = () => {
+    setActiveView('account');
+  };
+
+  const openMainView = () => {
+    setActiveView('main');
+  };
+
   return (
-    <div className="popcorn-shell">
-      <CorneliusToggle isOpen={isOpen} onToggle={onToggle} />
+    <div className={`popcorn-shell${isOpen ? ' is-open' : ''}`}>
+      <CorneliusToggle
+        isOpen={isOpen}
+        onToggle={onToggle}
+        isVideoPlayer={isVideoPlayer}
+      />
+      <VideoEdgeToggle
+        isOpen={isOpen}
+        onToggle={onToggle}
+        isVideoPlayer={isVideoPlayer}
+      />
 
       <aside className="popcorn-sidebar" aria-hidden={!isOpen}>
-        {/* Title, provider, and summary metadata */}
-        <header className="popcorn-header">
-          <div>
-            <div className="popcorn-brand">Popcorn!</div>
-            <div className="popcorn-tagline">Give your hottest takes</div>
-          </div>
-          <span className="popcorn-badge">
-            {providerLabel} {badgeLabel}
-          </span>
-        </header>
-
-        {/* Primary content summary */}
-        <section className="popcorn-hero">
-          <h2>{displayTitle}</h2>
-          {metadataLine ? (
-            <div className="popcorn-meta">{metadataLine}</div>
-          ) : null}
-          {displayOverview ? (
-            <p className="popcorn-overview">{displayOverview}</p>
-          ) : null}
-          {content?.url ? (
-            <a
-              className="popcorn-link"
-              href={content.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {content.url}
-            </a>
-          ) : (
-            <p className="popcorn-muted">
-              Open a preview or title page to load a thread.
-            </p>
-          )}
-          {content?.providerId ? (
-            <div className="popcorn-meta">
-              Provider ID: {content.provider}:{content.providerId}
-            </div>
-          ) : null}
-          {content?.tmdb?.id ? (
-            <div className="popcorn-meta">
-              TMDB: {content.tmdb.mediaType} #{content.tmdb.id}
-            </div>
-          ) : null}
-          {catalogEntry?.id ? (
-            <div className="popcorn-meta">Catalog: {catalogEntry.id}</div>
-          ) : null}
-        </section>
-
-        {/* Optional TMDB confirmation prompt */}
-        {candidateAvailable ? (
-          <section className="popcorn-candidate">
-            <div className="popcorn-section-title">
-              Confirm TMDB match
-            </div>
-            <div className="popcorn-candidate-body">
-              <div className="popcorn-candidate-title">
-                {content.tmdb.title}
+        {activeView === 'auth' ? (
+          <AuthPage
+            session={authSession}
+            status={authStatus}
+            mode={authMode}
+            email={authEmail}
+            password={authPassword}
+            isBusy={authBusy}
+            error={authError}
+            notice={authNotice}
+            disabled={!isSupabaseConfigured}
+            onBack={openMainView}
+            onEmailChange={handleAuthEmailChange}
+            onPasswordChange={handleAuthPasswordChange}
+            onModeToggle={handleAuthModeToggle}
+            onSubmit={handleAuthSubmit}
+            onSignOut={handleSignOut}
+          />
+        ) : activeView === 'account' ? (
+          <AccountPage
+            session={authSession}
+            status={authStatus}
+            profile={profile}
+            comments={accountComments}
+            commentsStatus={accountCommentsStatus}
+            commentsError={accountCommentsError}
+            isBusy={authBusy}
+            disabled={!isSupabaseConfigured}
+            onBack={openMainView}
+            onSignOut={handleSignOut}
+          />
+        ) : (
+          <>
+            {/* Title, provider, and summary metadata */}
+            <header className="popcorn-header">
+              <div>
+                <div className="popcorn-brand">Popcorn!</div>
+                <div className="popcorn-tagline">Give your hottest takes</div>
+                <div className="popcorn-muted">Hi, {greetingName}</div>
               </div>
-              {content.tmdb.originalTitle ? (
-                <div className="popcorn-candidate-subtitle">
-                  Original: {content.tmdb.originalTitle}
-                </div>
-              ) : null}
-              {content.tmdb.year ? (
-                <div className="popcorn-candidate-detail">
-                  Year: {content.tmdb.year}
-                </div>
-              ) : null}
-              {content.tmdb.genres?.length ? (
-                <div className="popcorn-candidate-detail">
-                  Genres: {content.tmdb.genres.join(', ')}
-                </div>
-              ) : null}
-              {Number.isFinite(content.tmdb.rating) ? (
-                <div className="popcorn-candidate-detail">
-                  Rating: {content.tmdb.rating.toFixed(1)} / 10 ({content.tmdb.voteCount || 0} votes)
-                </div>
-              ) : null}
-              {content.tmdb.overview ? (
-                <div className="popcorn-candidate-detail">
-                  Overview: {content.tmdb.overview}
-                </div>
-              ) : null}
-              {tmdbLink ? (
-                <a
-                  className="popcorn-link"
-                  href={tmdbLink}
-                  target="_blank"
-                  rel="noreferrer"
+              <div className="popcorn-header-actions">
+                <span className="popcorn-badge">
+                  {providerLabel} {badgeLabel}
+                </span>
+                <button
+                  className="popcorn-ghost popcorn-header-button"
+                  type="button"
+                  onClick={isAuthenticated ? openAccountView : openAuthView}
+                  disabled={!isSupabaseConfigured}
                 >
-                  View on TMDB
-                </a>
+                  {isAuthenticated ? 'Account' : 'Sign in'}
+                </button>
+                {isOpen ? (
+                  <button
+                    className="popcorn-ghost popcorn-header-button"
+                    type="button"
+                    onClick={onToggle}
+                  >
+                    Close
+                  </button>
+                ) : null}
+              </div>
+            </header>
+
+            {/* Primary content summary */}
+            <section className="popcorn-hero">
+              <div className="popcorn-hero-title-row">
+                <div className="popcorn-hero-title">
+                  <h2>{displayTitle}</h2>
+                </div>
+                <button
+                  className={`popcorn-fix-link ${fixLinkTone}`}
+                  type="button"
+                  onClick={openFixModal}
+                  disabled={!isReady || !catalogPlatformItemId}
+                >
+                  Wrong title?
+                </button>
+              </div>
+              {metadataLine ? (
+                <div className="popcorn-meta">{metadataLine}</div>
               ) : null}
-            </div>
-            <div className="popcorn-candidate-actions">
-              <button
-                className="popcorn-submit"
-                type="button"
-                onClick={handleConfirmCandidate}
-                disabled={isConfirming}
-              >
-                {isConfirming ? 'Saving...' : 'Confirm match'}
-              </button>
-              <button
-                className="popcorn-ghost"
-                type="button"
-                onClick={() => setCatalogDismissed(true)}
-                disabled={isConfirming}
-              >
-                Not this
-              </button>
-            </div>
-            {catalogError ? (
-              <div className="popcorn-error">{catalogError}</div>
+              {displayOverview ? (
+                <p className="popcorn-overview">{displayOverview}</p>
+              ) : null}
+              {status === 'ready' && comments.length === 0 && tmdbMatchSummary ? (
+                <div className="popcorn-callout">
+                  Whoops looks like you're the first one here! Did you want to make a
+                  post about: {tmdbMatchSummary}
+                </div>
+              ) : null}
+            </section>
+
+            {isReady &&
+            !mismatchDismissed &&
+            (matchConfidence === 'low' || catalogStatus === 'missing') ? (
+              <section className="popcorn-mismatch-banner">
+                <div className="popcorn-mismatch-copy">
+                  This might be misidentified. Help fix it?
+                </div>
+                <div className="popcorn-mismatch-actions">
+                  <button
+                    className="popcorn-ghost popcorn-mismatch-button"
+                    type="button"
+                    onClick={() => setMismatchDismissed(true)}
+                  >
+                    Looks right
+                  </button>
+                  <button
+                    className="popcorn-submit popcorn-mismatch-button"
+                    type="button"
+                    onClick={openFixModal}
+                  >
+                    Fix
+                  </button>
+                </div>
+              </section>
             ) : null}
-          </section>
-        ) : null}
+
+            {isFixOpen ? (
+              <div className="popcorn-modal" role="dialog" aria-modal="true">
+                <div
+                  className="popcorn-modal-scrim"
+                  role="presentation"
+                  onClick={closeFixModal}
+                />
+                <div className="popcorn-modal-card">
+                  <div className="popcorn-modal-title">Fix content match</div>
+                  <div className="popcorn-modal-helper">
+                    Pick the correct title so comments land in the right place.
+                  </div>
+                  <div className="popcorn-modal-question">Which is correct?</div>
+                  <input
+                    className="popcorn-input popcorn-fix-search"
+                    type="search"
+                    placeholder={
+                      isTmdbConfigured ? 'Search titles' : 'TMDB search disabled'
+                    }
+                    value={fixQuery}
+                    onChange={(event) => setFixQuery(event.target.value)}
+                    disabled={!isTmdbConfigured}
+                  />
+                  {fixStatus === 'loading' ? (
+                    <div className="popcorn-muted">Searching...</div>
+                  ) : null}
+                  {fixError ? <div className="popcorn-error">{fixError}</div> : null}
+                  <div className="popcorn-fix-list">
+                    {fixCandidates.map((candidate) => {
+                      const typeLabel =
+                        candidate.mediaType === 'movie' ? 'Movie' : 'Series';
+                      const badgeLabel = candidate.isCurrent
+                        ? 'Current match'
+                        : candidate.isSuggested
+                        ? 'Suggested'
+                        : '';
+                      const showBadge = Boolean(badgeLabel);
+                      return (
+                        <button
+                          key={candidate.key}
+                          className={`popcorn-fix-candidate${
+                            selectedFixKey === candidate.key ? ' is-selected' : ''
+                          }`}
+                          type="button"
+                          onClick={() => setSelectedFixKey(candidate.key)}
+                        >
+                          {candidate.posterUrl ? (
+                            <img
+                              className="popcorn-fix-poster"
+                              src={candidate.posterUrl}
+                              alt=""
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <div className="popcorn-fix-poster placeholder" />
+                          )}
+                          <div className="popcorn-fix-meta">
+                            <div className="popcorn-fix-title">
+                              {candidate.title}
+                              {candidate.year ? ` (${candidate.year})` : ''}
+                            </div>
+                            <div className="popcorn-fix-subtitle">
+                              {typeLabel}
+                              {candidate.network || candidate.studio
+                                ? ` • ${candidate.network || candidate.studio}`
+                                : ''}
+                            </div>
+                          </div>
+                          {showBadge ? (
+                            <span className="popcorn-fix-tag">{badgeLabel}</span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                    {fixStatus === 'ready' && fixCandidates.length === 0 ? (
+                      <div className="popcorn-muted">No matches yet.</div>
+                    ) : null}
+                  </div>
+                  <div className="popcorn-modal-actions">
+                    <button
+                      className="popcorn-ghost"
+                      type="button"
+                      onClick={closeFixModal}
+                      disabled={isSavingMatch}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="popcorn-submit"
+                      type="button"
+                      onClick={handleSaveMatch}
+                      disabled={
+                        isSavingMatch || !selectedFixKey || !isSupabaseConfigured
+                      }
+                    >
+                      {isSavingMatch ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {toastMessage ? (
+              <div className="popcorn-toast" role="status" aria-live="polite">
+                {toastMessage}
+              </div>
+            ) : null}
 
         {/* Comment composer */}
         <section className="popcorn-compose">
           <div className="popcorn-section-title">Start the thread</div>
           <CommentBox
             onSubmit={handleSubmit}
-            disabled={!isReady || status === 'loading' || !isSupabaseConfigured}
+            disabled={
+              !isReady ||
+              status === 'loading' ||
+              !isSupabaseConfigured ||
+              !isAuthenticated
+            }
+            placeholder={
+              isAuthenticated
+                ? 'Drop your take...'
+                : 'Sign in to join the thread...'
+            }
           />
+          {!isAuthenticated && isSupabaseConfigured ? (
+            <div className="popcorn-callout popcorn-auth-callout">
+              <div>Sign in to post and vote on comments.</div>
+              <button
+                className="popcorn-submit popcorn-auth-cta"
+                type="button"
+                onClick={openAuthView}
+              >
+                Sign in
+              </button>
+            </div>
+          ) : null}
           {connectionMessage ? (
             <div className="popcorn-callout">{connectionMessage}</div>
           ) : null}
@@ -567,9 +1445,12 @@ const SidebarApp = ({ content, isOpen, onToggle }) => {
               comment={comment}
               index={index}
               onVote={handleVote}
+              canVote={isAuthenticated}
             />
           ))}
         </section>
+          </>
+        )}
       </aside>
     </div>
   );
