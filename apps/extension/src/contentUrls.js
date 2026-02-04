@@ -1,15 +1,15 @@
-import { getNetflixDomCapture, isNetflixHost } from './netflix';
+import { getNetflixContent, isNetflixHost } from './netflix';
 import {
   fetchContentMetadataTmdbId,
-  insertExternalIdentifier,
+  insertPlatformID,
   isSupabaseConfigured
 } from './supabaseClient';
 
-// Capture Netflix DOM metadata and insert into external_identifiers.
+// Capture Netflix DOM metadata and insert into platform identifiers.
 export const captureNetflixContentUrl = async () => {
   if (!isSupabaseConfigured || !isNetflixHost()) return null;
 
-  const capture = getNetflixDomCapture();
+  const capture = getNetflixContent();
   if (!capture?.url || !capture.platform || !capture.platformItemId) return null;
 
   const tmdbId = await fetchContentMetadataTmdbId({
@@ -17,12 +17,9 @@ export const captureNetflixContentUrl = async () => {
     platformItemId: capture.platformItemId
   });
 
-  return insertExternalIdentifier({
-    title: capture.title,
-    yearPublished: capture.yearPublished,
-    url: capture.url,
-    platform: capture.platform,
-    externalIdentifier: capture.platformItemId,
-    tmdbId
+  return insertPlatformID({
+    p_platform: capture.platform,
+    p_platform_id: capture.platformItemId,
+    p_url: capture.url,
   });
 };

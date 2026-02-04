@@ -54,6 +54,27 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   }
 });
 
+const shouldDebugRpc = () => {
+  // if (typeof globalThis === 'undefined') return false;
+  // if (globalThis.__POPCORN_DEBUG_RPC__ === true) return true;
+
+  // try {
+  //   return globalThis.localStorage?.getItem('popcorn:debug-rpc') === 'true';
+  // } catch (error) {
+  //   return false;
+  // }
+  return true
+};
+
+const debugRpc = (stage, details) => {
+  if (!shouldDebugRpc()) return;
+  console.debug(`[supabase][rpc] ${stage}`, details);
+  if (details?.error) {
+    console.error('[supabase][rpc] error', details.error);
+    debugger;
+  }
+};
+
 const contentCatalog =
   typeof supabase.schema === 'function' ? supabase.schema('content_catalog') : supabase;
 
@@ -70,33 +91,36 @@ const notImplemented = (name) => {
   throw new Error(message);
 };
 
-// Minimal RPC wrapper for external identifier touch.
-export const touchExternalIdentifier = async ({
+// Minimal RPC wrapper for Platform ID touch.
+export const touchPlatformID = async ({
   platform,
-  externalId,
-  url,
-  title,
-  yearPublished
+  platformId,
+  url
 }) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
   const payload = {
     p_platform: platform || null,
-    p_external_id: externalId || null,
-    p_url: url || null,
-    p_title: title || null,
-    p_year_published: yearPublished || null
+    p_platform_id: platformId || null,
+    p_url: url || null
   };
 
   const clients = [contentCatalog, supabase];
   let missingError = null;
 
+  debugRpc('start', { payload });
+
   for (const client of clients) {
     try {
-      const { data, error } = await client.rpc('touch_external_identifier', payload);
+      const schema = client === contentCatalog ? 'content_catalog' : 'public';
+      debugRpc('attempt', { schema });
+      const { data, error } = await client.rpc('touch_platform_ids', payload);
       if (error) throw error;
+      debugRpc('success', { schema, data });
       return data ?? null;
     } catch (error) {
+      const schema = client === contentCatalog ? 'content_catalog' : 'public';
+      debugRpc('error', { schema, error });
       if (isMissingFunction(error)) {
         missingError = error;
         continue;
@@ -109,14 +133,12 @@ export const touchExternalIdentifier = async ({
   return null;
 };
 
-export const insertExternalIdentifier = async (payload) => {
+export const insertPlatformID = async (payload) => {
   // Not implemented: temp shim that only runs the RPC.
-  return touchExternalIdentifier({
-    platform: payload?.platform,
-    externalId: payload?.externalIdentifier || payload?.externalId,
-    url: payload?.url,
-    title: payload?.title,
-    yearPublished: payload?.yearPublished
+  return touchPlatformID({
+    p_platform: payload?.p_platform,
+    p_platform_id: payload?.p_platform_id,
+    p_url: payload?.p_url
   });
 };
 
@@ -131,10 +153,10 @@ export const upsertContentCatalogFromTmdb = async () =>
 export const confirmContentMapping = async () => notImplemented('confirmContentMapping');
 export const upsertContentMetadata = async () => notImplemented('upsertContentMetadata');
 export const fetchContentMetadata = async () => notImplemented('fetchContentMetadata');
-export const fetchContentExternalId = async () => notImplemented('fetchContentExternalId');
-export const insertContentExternalId = async () => notImplemented('insertContentExternalId');
-export const upsertContentExternalIdLink = async () =>
-  notImplemented('upsertContentExternalIdLink');
+export const fetchContentPlatformId = async () => notImplemented('fetchContentPlatformId');
+export const insertContentPlatformId = async () => notImplemented('insertContentPlatformId');
+export const upsertContentPlatformIdLink = async () =>
+  notImplemented('upsertContentPlatformIdLink');
 export const fetchContentMetadataTmdbId = async () =>
   notImplemented('fetchContentMetadataTmdbId');
 export const getViewerId = () => notImplemented('getViewerId');

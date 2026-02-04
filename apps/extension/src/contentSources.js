@@ -2,9 +2,9 @@ import { getDisneyContent, isDisneyHost } from './disney';
 import { getNetflixContent, isNetflixHost } from './netflix';
 import { getTmdbMetadata, isTmdbConfigured } from './tmdb';
 import {
-  fetchContentExternalId,
+  fetchContentPlatformId,
   fetchContentMetadata,
-  insertContentExternalId,
+  insertContentPlatformId,
   isSupabaseConfigured
 } from './supabaseClient';
 
@@ -24,11 +24,20 @@ const PROVIDERS = [
   }
 ];
 
-const EXTERNAL_ID_CACHE = new Map();
-const UNRESOLVED_EXTERNAL_IDS = new Map();
+const PLATFORM_ID_CACHE = new Map();
+const UNRESOLVED_PLATFORM_IDS = new Map();
 
-const buildExternalIdKey = (source, externalId) =>
-  source && externalId ? `${source}:${externalId}` : '';
+const buildPlatformIdKey = (source, platformId) =>
+  source && platformId ? `${source}:${platformId}` : '';
+
+const normalizePlatformRecord = (record) => {
+  if (!record) return null;
+  const { external_id: externalId, platform_id: platformId, ...rest } = record;
+  return {
+    ...rest,
+    platform_id: platformId ?? externalId ?? null
+  };
+};
 
 const normalizeContent = (content, provider) => {
   if (!content) return null;
@@ -55,17 +64,17 @@ export const getProviderLabel = (providerKey) => {
   return provider?.label || 'Unknown';
 };
 
-export const markExternalIdResolved = ({ source, externalId, contentId }) => {
-  const key = buildExternalIdKey(source, externalId);
+export const markPlatformIdResolved = ({ source, platformId, contentId }) => {
+  const key = buildPlatformIdKey(source, platformId);
   if (!key || !contentId) return;
-  const existing = EXTERNAL_ID_CACHE.get(key);
-  EXTERNAL_ID_CACHE.set(key, {
+  const existing = PLATFORM_ID_CACHE.get(key);
+  PLATFORM_ID_CACHE.set(key, {
     ...(existing || {}),
     source,
-    external_id: externalId,
+    platform_id: platformId,
     content_id: contentId
   });
-  UNRESOLVED_EXTERNAL_IDS.delete(key);
+  UNRESOLVED_PLATFORM_IDS.delete(key);
 };
 
 // Detect the current page and return the associated content data.
@@ -81,35 +90,36 @@ export const enrichContentWithTmdb = async (content) => {
   if (!content) return null;
   const platformItemId = content.platformItemId || null;
   const source = content.provider || content.platform || null;
-  const externalKey = buildExternalIdKey(source, platformItemId);
-  const attachExternal = (payload) => ({
+  const platformKey = buildPlatformIdKey(source, platformItemId);
+  const attachPlatformId = (payload) => ({
     ...payload,
-    externalIdRecord: externalKey ? EXTERNAL_ID_CACHE.get(externalKey) : null,
-    externalIdNeedsMatch: externalKey
-      ? UNRESOLVED_EXTERNAL_IDS.has(externalKey)
+    platformIdRecord: platformKey ? PLATFORM_ID_CACHE.get(platformKey) : null,
+    platformIdNeedsMatch: platformKey
+      ? UNRESOLVED_PLATFORM_IDS.has(platformKey)
       : false
   });
 
   let existing = null;
   if (isSupabaseConfigured) {
-    if (externalKey && !EXTERNAL_ID_CACHE.has(externalKey)) {
+    if (platformKey && !PLATFORM_ID_CACHE.has(platformKey)) {
       try {
-        const externalRecord =
-          (await fetchContentExternalId({
+        const platformRecord =
+          (await fetchContentPlatformId({
             source,
-            externalId: platformItemId
+            platformId: platformItemId
           })) ||
-          (await insertContentExternalId({
+          (await insertContentPlatformId({
             source,
-            externalId: platformItemId,
+            platformId: platformItemId,
             url: content.url
           }));
-        EXTERNAL_ID_CACHE.set(externalKey, externalRecord || null);
-        if (externalRecord && !externalRecord.content_id) {
-          UNRESOLVED_EXTERNAL_IDS.set(externalKey, externalRecord);
+        const normalizedRecord = normalizePlatformRecord(platformRecord);
+        PLATFORM_ID_CACHE.set(platformKey, normalizedRecord);
+        if (normalizedRecord && !normalizedRecord.content_id) {
+          UNRESOLVED_PLATFORM_IDS.set(platformKey, normalizedRecord);
         }
       } catch (error) {
-        EXTERNAL_ID_CACHE.set(externalKey, null);
+        PLATFORM_ID_CACHE.set(platformKey, null);
       }
     }
 
@@ -131,19 +141,19 @@ export const enrichContentWithTmdb = async (content) => {
           existing.tmdb_metadata?.wikidataId
       );
       if (hasExternalIds || !isTmdbConfigured) {
-        return attachExternal({ ...content, tmdb: existing.tmdb_metadata });
+        return attachPlatformId({ ...content, tmdb: existing.tmdb_metadata });
       }
     }
   }
 
   if (!isTmdbConfigured) {
-    return attachExternal({ ...content, tmdb: existing?.tmdb_metadata || null });
+    return attachPlatformId({ ...content, tmdb: existing?.tmdb_metadata || null });
   }
 
   const metadata = await getTmdbMetadata(content);
   if (!metadata) {
-    return attachExternal({ ...content, tmdb: existing?.tmdb_metadata || null });
+    return attachPlatformId({ ...content, tmdb: existing?.tmdb_metadata || null });
   }
 
-  return attachExternal({ ...content, tmdb: metadata });
+  return attachPlatformId({ ...content, tmdb: metadata });
 };

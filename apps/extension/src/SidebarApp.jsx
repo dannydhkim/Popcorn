@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import CommentBox from './commentBox';
-import { getProviderLabel, markExternalIdResolved } from './contentSources';
+import { getProviderLabel, markPlatformIdResolved } from './contentSources';
 import {
   confirmContentMapping,
   createComment,
@@ -12,7 +12,7 @@ import {
   isSupabaseConfigured,
   supabase,
   updateCommentScore,
-  upsertContentExternalIdLink,
+  upsertContentPlatformIdLink,
   upsertContentCatalogFromTmdb,
   upsertContentMetadata
 } from './supabaseClient';
@@ -1000,23 +1000,23 @@ const SidebarApp = ({ content, isOpen, onToggle, isVideoPlayer }) => {
         return;
       }
 
-      const externalLink = await upsertContentExternalIdLink({
+      const platformLink = await upsertContentPlatformIdLink({
         source: content.provider,
-        externalId: catalogPlatformItemId,
+        platformId: catalogPlatformItemId,
         contentId: metadataRecord.id,
         url: content.url
       });
 
-      if (!externalLink) {
+      if (!platformLink) {
         setFixError(
-          'Content external ids table is missing. Apply supabase/schema.sql.'
+          'Content platform ids table is missing. Apply supabase/schema.sql.'
         );
         return;
       }
 
-      markExternalIdResolved({
+      markPlatformIdResolved({
         source: content.provider,
-        externalId: catalogPlatformItemId,
+        platformId: catalogPlatformItemId,
         contentId: metadataRecord.id
       });
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import SidebarApp from './SidebarApp';
 import { enrichContentWithTmdb, getActiveContent } from './contentSources';
+import { captureNetflixContentUrl } from './contentUrls';
 
 // DOM ids used to locate the injected host + style elements.
 const HOST_ID = 'popcorn-extension-host';
@@ -306,6 +307,7 @@ const syncContent = () => {
   render();
 
   console.log('currentContent', currentContent)
+  captureNetflixContentUrl().catch(() => {});
 
   const requestId = ++tmdbRequestId;
   enrichContentWithTmdb(nextContent).then((enriched) => {
