@@ -1,6 +1,5 @@
 import { getNetflixContent, isNetflixHost } from './netflix';
 import {
-  fetchContentMetadataTmdbId,
   insertPlatformID,
   isSupabaseConfigured
 } from './supabaseClient';
@@ -10,16 +9,33 @@ export const captureNetflixContentUrl = async () => {
   if (!isSupabaseConfigured || !isNetflixHost()) return null;
 
   const capture = getNetflixContent();
-  if (!capture?.url || !capture.platform || !capture.platformItemId) return null;
 
-  const tmdbId = await fetchContentMetadataTmdbId({
+  console.log('[captureNetflixContentUrl] Captured content:', capture);
+
+  if (!capture?.platform || !capture?.platformItemId) {
+    console.log('[captureNetflixContentUrl] Missing required fields, skipping upload');
+    return null;
+  }
+
+  // Simplify URL to just the base Netflix URL with the item ID
+  const simplifiedUrl = `https://www.netflix.com/watch/${capture.platformItemId}`;
+
+  console.log('[captureNetflixContentUrl] Attempting to upload platform ID:', {
     platform: capture.platform,
-    platformItemId: capture.platformItemId
+    platformItemId: capture.platformItemId,
+    url: simplifiedUrl
   });
 
-  return insertPlatformID({
-    p_platform: capture.platform,
-    p_platform_id: capture.platformItemId,
-    p_url: capture.url,
-  });
+  try {
+    const result = await insertPlatformID({
+      p_platform: capture.platform,
+      p_platform_id: capture.platformItemId,
+      p_url: simplifiedUrl,
+    });
+    console.log('[captureNetflixContentUrl] Platform ID upload result:', result);
+    return result;
+  } catch (error) {
+    console.error('[captureNetflixContentUrl] Platform ID upload failed:', error);
+    throw error;
+  }
 };

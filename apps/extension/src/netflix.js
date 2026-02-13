@@ -135,7 +135,13 @@ const stripNetflixSuffix = (value) =>
 
 const isGenericTitle = (value) => {
   const normalized = normalize(stripNetflixSuffix(value));
-  return !normalized || normalized === 'netflix' || normalized === 'netflix home';
+  return (
+    !normalized ||
+    normalized === 'netflix' ||
+    normalized === 'netflix home' ||
+    normalized === 'home' ||
+    normalized === 'browse'
+  );
 };
 
 // Normalize DOM text into a safe string.
@@ -777,9 +783,13 @@ const getPreviewFields = (previewNode, previewId) => {
     previewNode.querySelector('[data-uia="previewModal--tags-genre"]')
   );
 
+  // If title looks generic but we have metadata, it's likely a real show
+  const hasMetadata = Boolean(year || durationMinutes || genres.length);
+  const isActuallyGeneric = titleIsGeneric && !hasMetadata;
+
   const complete =
     Boolean(title) &&
-    !titleIsGeneric &&
+    !isActuallyGeneric &&
     (year || !hasYearNode) &&
     (durationMinutes !== null || !hasDurationNode) &&
     (genres.length || !hasGenresNode);
@@ -805,7 +815,11 @@ const getPageFields = (pageId) => {
   const year = yearFromPage();
   const titleIsGeneric = isGenericTitle(title);
 
-  const complete = Boolean(title) && !titleIsGeneric;
+  // If title looks generic but we have a year, it's likely a real show
+  const hasMetadata = Boolean(year);
+  const isActuallyGeneric = titleIsGeneric && !hasMetadata;
+
+  const complete = Boolean(title) && !isActuallyGeneric;
   const entry = {
     fields: {
       title,
@@ -839,9 +853,14 @@ const getTitlePageFields = (pageId) => {
     metadataRoot?.querySelector(TITLE_PAGE_GENRE_SELECTORS.join(', '))
   );
 
+  // If title looks generic but we have metadata (year/duration/genres), it's likely a real show
+  // e.g., DreamWorks "Home" movie will have year/duration/genres
+  const hasMetadata = Boolean(year || durationMinutes || genres.length);
+  const isActuallyGeneric = titleIsGeneric && !hasMetadata;
+
   const complete =
     Boolean(title) &&
-    !titleIsGeneric &&
+    !isActuallyGeneric &&
     (year || !hasYearNode) &&
     (durationMinutes !== null || !hasDurationNode) &&
     (genres.length || !hasGenresNode);
@@ -868,6 +887,14 @@ const logCaptureOnce = (label, payload, fromCache) => {
 // Check if the current hostname matches Netflix.
 export const isNetflixHost = (hostname = window.location.hostname) =>
   NETFLIX_HOSTS.has(hostname);
+
+// Clear Netflix DOM caches when navigating to ensure fresh captures
+export const clearNetflixCaches = () => {
+  PREVIEW_FIELDS_CACHE.clear();
+  PAGE_FIELDS_CACHE.clear();
+  TITLE_PAGE_FIELDS_CACHE.clear();
+  debugLog('Cleared Netflix DOM caches');
+};
 
 // Capture Netflix DOM metadata for content_urls ingestion.
 export const getNetflixContent = () => {

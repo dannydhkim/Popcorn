@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import SidebarApp from './SidebarApp';
 import { enrichContentWithTmdb, getActiveContent } from './contentSources';
 import { captureNetflixContentUrl } from './contentUrls';
+import { clearNetflixCaches } from './netflix';
 
 // DOM ids used to locate the injected host + style elements.
 const HOST_ID = 'popcorn-extension-host';
@@ -21,6 +22,7 @@ let syncQueued = false;
 let tmdbRequestId = 0;
 let isClosing = false;
 let closeTimer = null;
+let lastUrl = window.location.href;
 
 const CLOSE_ANIMATION_MS = 350;
 
@@ -260,6 +262,7 @@ const render = () => {
 
 // Toggle UI state and sync the host DOM attributes.
 const setOpen = (nextOpen) => {
+  const wasOpen = isOpen;
   isOpen = nextOpen;
   if (closeTimer) {
     window.clearTimeout(closeTimer);
@@ -279,12 +282,31 @@ const setOpen = (nextOpen) => {
   }
   syncBodyClasses();
   render();
+
+  // Only enrich with TMDB when opening the sidebar (user shows intent)
+  if (nextOpen && !wasOpen && currentContent) {
+    const requestId = ++tmdbRequestId;
+    enrichContentWithTmdb(currentContent).then((enriched) => {
+      if (!enriched) return;
+      if (requestId !== tmdbRequestId) return;
+      if (currentPlatformItemId !== currentContent.platformItemId) return;
+      currentContent = enriched;
+      render();
+    });
+  }
 };
 
 // Pull active content, update state, and attach TMDB metadata.
 const syncContent = () => {
+  // Clear Netflix caches when URL changes to ensure fresh captures
+  const currentUrl = window.location.href;
+  if (currentUrl !== lastUrl) {
+    lastUrl = currentUrl;
+    clearNetflixCaches();
+  }
+
   const nextContent = getActiveContent();
-  
+
   const nextIsVideoPlayer = getVideoPlayerMode(nextContent);
   if (nextIsVideoPlayer !== isVideoPlayer) {
     isVideoPlayer = nextIsVideoPlayer;
@@ -306,17 +328,13 @@ const syncContent = () => {
   currentContent = nextContent;
   render();
 
-  console.log('currentContent', currentContent)
-  captureNetflixContentUrl().catch(() => {});
-
-  const requestId = ++tmdbRequestId;
-  enrichContentWithTmdb(nextContent).then((enriched) => {
-    if (!enriched) return;
-    if (requestId !== tmdbRequestId) return;
-    if (currentPlatformItemId !== nextContent.platformItemId) return;
-    currentContent = enriched;
-    render();
+  // Upload platform ID in the background
+  captureNetflixContentUrl().catch((error) => {
+    console.error('[contentScript] captureNetflixContentUrl failed:', error);
   });
+
+  // TMDB enrichment now only happens when sidebar is opened (see setOpen)
+  // This prevents wasteful API calls on every hover
 };
 
 // Batch repeated DOM mutations into a single sync pass.

@@ -55,20 +55,19 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
 });
 
 const shouldDebugRpc = () => {
-  // if (typeof globalThis === 'undefined') return false;
-  // if (globalThis.__POPCORN_DEBUG_RPC__ === true) return true;
+  if (typeof globalThis === 'undefined') return false;
+  if (globalThis.__POPCORN_DEBUG_RPC__ === true) return true;
 
-  // try {
-  //   return globalThis.localStorage?.getItem('popcorn:debug-rpc') === 'true';
-  // } catch (error) {
-  //   return false;
-  // }
-  return true
+  try {
+    return globalThis.localStorage?.getItem('popcorn:debug-rpc') === 'true';
+  } catch (error) {
+    return false;
+  }
 };
 
 const debugRpc = (stage, details) => {
   if (!shouldDebugRpc()) return;
-  console.debug(`[supabase][rpc] ${stage}`, details);
+  console.log(`[supabase][rpc] ${stage}`, details);
   if (details?.error) {
     console.error('[supabase][rpc] error', details.error);
     debugger;
@@ -77,12 +76,6 @@ const debugRpc = (stage, details) => {
 
 const contentCatalog =
   typeof supabase.schema === 'function' ? supabase.schema('content_catalog') : supabase;
-
-const isMissingFunction = (error) =>
-  error?.code === '42883' ||
-  error?.code === 'PGRST202' ||
-  (error?.message?.includes('function') && error?.message?.includes('does not exist')) ||
-  error?.message?.includes('Could not find the function');
 
 const notImplemented = (name) => {
   const message = `${name} is not implemented`;
@@ -93,44 +86,31 @@ const notImplemented = (name) => {
 
 // Minimal RPC wrapper for Platform ID touch.
 export const touchPlatformID = async ({
-  platform,
-  platformId,
-  url
+  p_platform,
+  p_platform_id,
+  p_url
 }) => {
   if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
 
   const payload = {
-    p_platform: platform || null,
-    p_platform_id: platformId || null,
-    p_url: url || null
+    p_platform: p_platform || null,
+    p_platform_id: p_platform_id || null,
+    p_url: p_url || null
   };
-
-  const clients = [contentCatalog, supabase];
-  let missingError = null;
 
   debugRpc('start', { payload });
 
-  for (const client of clients) {
-    try {
-      const schema = client === contentCatalog ? 'content_catalog' : 'public';
-      debugRpc('attempt', { schema });
-      const { data, error } = await client.rpc('touch_platform_ids', payload);
-      if (error) throw error;
-      debugRpc('success', { schema, data });
-      return data ?? null;
-    } catch (error) {
-      const schema = client === contentCatalog ? 'content_catalog' : 'public';
-      debugRpc('error', { schema, error });
-      if (isMissingFunction(error)) {
-        missingError = error;
-        continue;
-      }
-      throw error;
-    }
+  try {
+    debugRpc('attempt', { schema: 'content_catalog' });
+    const result = await contentCatalog.rpc('touch_platform_ids', payload);
+    const { data, error } = result;
+    if (error) throw error;
+    debugRpc('success', { schema: 'content_catalog', data });
+    return data ?? null;
+  } catch (error) {
+    debugRpc('error', { schema: 'content_catalog', error });
+    throw error;
   }
-
-  if (missingError) throw missingError;
-  return null;
 };
 
 export const insertPlatformID = async (payload) => {
@@ -140,6 +120,56 @@ export const insertPlatformID = async (payload) => {
     p_platform_id: payload?.p_platform_id,
     p_url: payload?.p_url
   });
+};
+
+// Fetch content metadata by content_id from content_catalog.content table
+export const fetchContentById = async (contentId) => {
+  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+  if (!contentId) return null;
+
+  try {
+    const { data, error } = await contentCatalog
+      .from('content')
+      .select('*')
+      .eq('content_id', contentId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('[supabase] fetchContentById failed:', error);
+    return null;
+  }
+};
+
+// Insert a vote for content matching
+export const insertContentVote = async ({
+  platform,
+  platformId,
+  tmdbId,
+  mediaType
+}) => {
+  if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+
+  try {
+    const { data, error } = await contentCatalog
+      .from('content_platform_id_votes')
+      .insert({
+        platform,
+        platform_id: platformId,
+        tmdb_id: tmdbId,
+        media_type: mediaType
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    console.log('[supabase] Vote inserted:', data);
+    return data;
+  } catch (error) {
+    console.error('[supabase] insertContentVote failed:', error);
+    throw error;
+  }
 };
 
 // ---- Temporary stubs (not implemented) ----
